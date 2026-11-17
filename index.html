@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>타임 핏 (Time Fit) — 팀플 일정 조율</title>
+  <style>
+    :root {
+      --primary: #ff6b00;
+      --primary-dark: #d95700;
+      --primary-light: #fff3e8;
+      --primary-border: #ffd2b3;
+      --bg: #f8f9fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --danger-border: #fecaca;
+      --success: #15803d;
+      --success-bg: #dcfce7;
+      --warn-bg: #fef3c7;
+      --warn-text: #92400e;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+      overflow-x: hidden;
+    }
+
+    .app-shell {
+      max-width: 440px;
+      min-height: 100vh;
+      margin: 0 auto;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 24px;
+    }
+
+    /* 상단 헤더 */
+    .top-header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 14px 10px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 800;
+      font-size: 18px;
+      color: var(--primary);
+    }
+
+    .today-pill {
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      border: 1px solid var(--primary-border);
+      padding: 4px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    /* 테스트용 버튼 바 (항시 노출) */
+    .test-bar {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .test-btn {
+      flex: 1;
+      padding: 8px 6px;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #f3f4f6;
+      color: #374151;
+      cursor: pointer;
+    }
+
+    .test-btn:active {
+      background: #e5e7eb;
+    }
+
+    .test-btn.reset {
+      color: var(--danger);
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+    }
+
+    /* 단계 네비게이션 */
+    .step-nav {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      padding: 10px 12px 4px;
+    }
+
+    .step-tab {
+      padding: 8px 2px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .step-tab.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    .step-tab:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    /* 본문 */
+    .main-content {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 800;
+      margin: 0 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .sub-desc {
+      font-size: 13px;
+      color: var(--muted);
+      margin: -4px 0 10px;
+    }
+
+    /* 폼 요소 */
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .field-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #374151;
+    }
+
+    input[type="date"],
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 10px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 14px;
+      background: #ffffff;
+      color: var(--text);
+      min-width: 0;
+    }
+
+    .duration-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .duration-input-row input[type="number"] {
+      flex: 1;
+      font-weight: 700;
+    }
+
+    .duration-unit {
+      font-size: 14px;
+      font-weight: 700;
+      color: #374151;
+      white-space: nowrap;
+    }
+
+    input:focus, select:focus {
+      outline: 2px solid var(--primary);
+      border-color: var(--primary);
+    }
+
+    .duration-group {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .choice-btn {
+      padding: 10px 6px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .choice-btn.active {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: var(--primary-dark);
+    }
+
+    /* 팀원 입력 카드 */
+    .member-block {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fafafa;
+      margin-bottom: 10px;
+    }
+
+    .member-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .member-header input[type="text"] {
+      flex: 1;
+      font-weight: 700;
+    }
+
+    .small-btn {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .small-btn.danger {
+      color: var(--danger);
+      border-color: var(--danger-border);
+      background: var(--danger-bg);
+    }
+
+    .unavail-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .unavail-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .chip-del {
+      border: none;
+      background: none;
+      color: var(--danger);
+      font-weight: 800;
+      cursor: pointer;
+      padding: 0 2px;
+      font-size: 13px;
+    }
+
+    .add-unavail-row {
+      display: grid;
+      grid-template-columns: 54px 1fr 14px 1fr 54px;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .add-unavail-row select {
+      padding: 8px 4px;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .tilde-sep {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    /* 큰 터치 버튼 */
+    .primary-btn {
+      width: 100%;
+      padding: 14px 12px;
+      border-radius: 12px;
+      border: none;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .primary-btn:active {
+      background: var(--primary-dark);
+    }
+
+    .secondary-btn {
+      width: 100%;
+      padding: 13px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--primary);
+      background: #ffffff;
+      color: var(--primary-dark);
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .danger-btn {
+      width: 100%;
+      padding: 13px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--danger-border);
+      background: var(--danger-bg);
+      color: var(--danger);
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-row > button {
+      flex: 1;
+    }
+
+    /* 배지 및 알림 */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .badge-orange {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .badge-light {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      border: 1px solid var(--primary-border);
+    }
+
+    .badge-warn {
+      background: var(--warn-bg);
+      color: var(--warn-text);
+    }
+
+    .badge-green {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .badge-red {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid var(--danger-border);
+    }
+
+    .alert-box {
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .alert-danger {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      color: var(--danger);
+    }
+
+    .alert-confirmed {
+      background: #fff7ed;
+      border: 2px solid var(--primary);
+      color: var(--text);
+    }
+
+    /* 2번 화면: 팀원 선택 & 가용 시간 칸 */
+    .voter-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .voter-btn {
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .voter-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+    }
+
+    .day-section {
+      margin-bottom: 12px;
+    }
+
+    .day-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #374151;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .slot-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .slot-card {
+      width: 100%;
+      text-align: left;
+      padding: 12px;
+      border-radius: 12px;
+      border: 2px solid var(--primary-border);
+      background: var(--primary-light);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .slot-card.voted-by-me {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .slot-card.full-match {
+      background: #ffedd5;
+      border-color: var(--primary);
+    }
+
+    .slot-card.confirmed-slot {
+      background: #ff6b00;
+      border-color: var(--primary-dark);
+      color: #ffffff;
+    }
+
+    .slot-card.confirmed-slot .slot-meta,
+    .slot-card.confirmed-slot .voter-names {
+      color: #fff7ed;
+    }
+
+    .slot-card.past-slot {
+      opacity: 0.6;
+      background: #f3f4f6;
+      border-color: #d1d5db;
+    }
+
+    .slot-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .slot-time {
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .slot-meta {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .voter-names {
+      font-size: 12px;
+      color: #4b5563;
+    }
+
+    /* 3번 화면: Top 3 및 참여율 막대 */
+    .rank-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: #ffffff;
+    }
+
+    .rank-card.top-full {
+      background: #ffedd5;
+      border: 2px solid var(--primary);
+    }
+
+    .rank-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    .rank-title {
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .progress-wrap {
+      margin-bottom: 10px;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 12px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 999px;
+      transition: width 0.2s ease;
+    }
+
+    .member-status-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .member-status-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: #f9fafb;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    /* 모달 (불참 팀원 선택) */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 50;
+    }
+
+    .modal-box {
+      width: 100%;
+      max-width: 360px;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 상단 헤더 & 초기화 버튼 -->
+    <header class="top-header">
+      <div class="header-row">
+        <div class="brand">⏰ 타임 핏</div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="today-pill" id="todayBadge">오늘: -</div>
+          <button type="button" class="test-btn reset" style="flex:none; padding:5px 10px;" id="btnResetAll">처음부터 다시</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 4단계 화면 이동 탭 -->
+    <nav class="step-nav" aria-label="화면 이동">
+      <button type="button" class="step-tab active" data-screen="1">1. 일정 입력</button>
+      <button type="button" class="step-tab" data-screen="2" id="tabScreen2">2. 캘린더</button>
+      <button type="button" class="step-tab" data-screen="3" id="tabScreen3">3. 투표 현황</button>
+      <button type="button" class="step-tab" data-screen="4" id="tabScreen4">4. 재조율</button>
+    </nav>
+
+    <main class="main-content" id="mainContent"></main>
+  </div>
+
+  <!-- 불참 팀원 선택 모달 -->
+  <div class="modal-backdrop hidden" id="absentModal">
+    <div class="modal-box">
+      <h3 style="margin: 0 0 6px; font-size: 16px;">일정 변동 (불참) 선택</h3>
+      <p style="margin: 0 0 12px; font-size: 13px; color: #4b5563;">
+        확정된 일정에 참석할 수 없는 팀원을 선택하면 기존 확정이 해제되고 차순위 시간을 추천합니다.
+      </p>
+      <div id="absentMemberList" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;"></div>
+      <button type="button" class="small-btn" style="width: 100%; padding: 10px;" id="btnCloseAbsentModal">닫기</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = "timefit_app_state_v1";
+      const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
+      const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
+      const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
+
+      // 로컬 날짜 포맷 YYYY-MM-DD
+      function getRealTodayStr() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      }
+
+      function addDaysStr(dateStr, days) {
+        const [y, m, d] = dateStr.split("-").map(Number);
+        const dt = new Date(y, m - 1, d);
+        dt.setDate(dt.getDate() + days);
+        const ny = dt.getFullYear();
+        const nm = String(dt.getMonth() + 1).padStart(2, "0");
+        const nd = String(dt.getDate()).padStart(2, "0");
+        return `${ny}-${nm}-${nd}`;
+      }
+
+      function diffDays(fromStr, toStr) {
+        const [y1, m1, d1] = fromStr.split("-").map(Number);
+        const [y2, m2, d2] = toStr.split("-").map(Number);
+        const t1 = new Date(y1, m1 - 1, d1).getTime();
+        const t2 = new Date(y2, m2 - 1, d2).getTime();
+        return Math.round((t2 - t1) / (1000 * 60 * 60 * 24));
+      }
+
+      function getDayKo(dateStr) {
+        const [y, m, d] = dateStr.split("-").map(Number);
+        return DAYS_KO[new Date(y, m - 1, d).getDay()];
+      }
+
+      function formatShortDate(dateStr) {
+        const [, m, d] = dateStr.split("-").map(Number);
+        return `${Number(m)}/${Number(d)}(${getDayKo(dateStr)})`;
+      }
+
+      function formatHour(h) {
+        return `${String(h).padStart(2, "0")}:00`;
+      }
+
+      // 설계서 ⑧ 테스트 값 기반 초기 상태 생성
+      function createInitialState() {
+        const today = getRealTodayStr();
+        return {
+          appToday: today,
+          screen: 1,
+          startDate: today,
+          endDate: addDaysStr(today, 7),
+          minDuration: 60,
+          selectedVoterIndex: 0,
+          members: [
+            {
+              id: "m1",
+              name: "이준호",
+              unavailable: [
+                { day: "월", start: 13, end: 15 },
+                { day: "수", start: 10, end: 12 },
+                { day: "금", start: 9, end: 11 }
+              ]
+            },
+            {
+              id: "m2",
+              name: "김민지",
+              unavailable: [
+                { day: "화", start: 9, end: 12 },
+                { day: "목", start: 14, end: 16 },
+                { day: "월", start: 10, end: 12 }
+              ]
+            },
+            {
+              id: "m3",
+              name: "박서준",
+              unavailable: [
+                { day: "월", start: 15, end: 18 },
+                { day: "금", start: 13, end: 17 },
+                { day: "수", start: 14, end: 16 }
+              ]
+            },
+            {
+              id: "m4",
+              name: "최유진",
+              unavailable: [
+                { day: "화", start: 10, end: 13 },
+                { day: "수", start: 18, end: 21 },
+                { day: "목", start: 9, end: 12 }
+              ]
+            }
+          ],
+          slots: [],
+          rebalanceInfo: null
+        };
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return createInitialState();
+          const parsed = JSON.parse(raw);
+          if (!parsed || !Array.isArray(parsed.members)) return createInitialState();
+          parsed.appToday = getRealTodayStr();
+          return parsed;
+        } catch (e) {
+          return createInitialState();
+        }
+      }
+
+      let state = loadState();
+
+      function saveState() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      // 2번 칸: 초안 생성 알고리즘 (판단 규칙 4 포함)
+      function generateDraftSlots() {
+        const minMinutes = Math.max(10, Number(state.minDuration) || 60);
+        const totalMembers = state.members.length;
+        const daysCount = diffDays(state.startDate, state.endDate);
+        if (daysCount < 0) return [];
+
+        function collectBlocks(minAvailableRequired, isFallback) {
+          const result = [];
+          for (let offset = 0; offset <= daysCount; offset++) {
+            const dateStr = addDaysStr(state.startDate, offset);
+            const dayKo = getDayKo(dateStr);
+
+            // 09:00 ~ 21:00 각 1시간 슬롯별 가능 인원 계산
+            const hourOk = HOURS.map((h) => {
+              let avail = 0;
+              state.members.forEach((m) => {
+                const blocked = m.unavailable.some(
+                  (u) => u.day === dayKo && h >= u.start && h < u.end
+                );
+                if (!blocked) avail++;
+              });
+              return { hour: h, ok: avail >= minAvailableRequired, availCount: avail };
+            });
+
+            // 연속으로 조건을 만족하는 블록 묶기
+            let runStart = null;
+            let minAvailInRun = totalMembers;
+            for (let i = 0; i <= hourOk.length; i++) {
+              const cur = hourOk[i];
+              if (cur && cur.ok) {
+                if (runStart === null) {
+                  runStart = cur.hour;
+                  minAvailInRun = cur.availCount;
+                } else {
+                  minAvailInRun = Math.min(minAvailInRun, cur.availCount);
+                }
+              } else {
+                if (runStart !== null) {
+                  const endHour = cur ? cur.hour : 22;
+                  if ((endHour - runStart) * 60 >= minMinutes) {
+                    const votes = {};
+                    state.members.forEach((m) => {
+                      votes[m.id] = "미응답";
+                    });
+                    result.push({
+                      id: `${dateStr}_${runStart}_${endHour}`,
+                      date: dateStr,
+                      dayKo: dayKo,
+                      startHour: runStart,
+                      endHour: endHour,
+                      votes: votes,
+                      status: "후보",
+                      isFallback: isFallback,
+                      possibleMembersCount: minAvailInRun
+                    });
+                  }
+                  runStart = null;
+                }
+              }
+            }
+          }
+          return result;
+        }
+
+        // 1차: 전원(100%)이 동시에 비는 시간대 탐색
+        let generated = collectBlocks(totalMembers, false);
+
+        // 판단 규칙 4: 전원이 동시에 비는 가용 시간이 0개이면 (총 팀원 수 - 1명) 차선책 탐색
+        if (generated.length === 0 && totalMembers >= 2) {
+          for (let target = totalMembers - 1; target >= 1; target--) {
+            const fallbackBlocks = collectBlocks(target, true);
+            if (fallbackBlocks.length > 0) {
+              generated = fallbackBlocks;
+              break;
+            }
+          }
+        }
+
+        return generated;
+      }
+
+      // 슬롯의 '가능' 투표 수 계산
+      function getYesCount(slot) {
+        return state.members.reduce((acc, m) => acc + (slot.votes[m.id] === "가능" ? 1 : 0), 0);
+      }
+
+      function getYesNames(slot) {
+        return state.members.filter((m) => slot.votes[m.id] === "가능").map((m) => m.name);
+      }
+
+      // 초안 조건 변경 시 기존 슬롯 초기화 (데이터 불일치 방지)
+      function invalidateDraftSlots() {
+        if (state.slots.length > 0 || state.rebalanceInfo) {
+          state.slots = [];
+          state.rebalanceInfo = null;
+          updateChrome();
+        }
+      }
+
+      // 순위 계산 (투표 수 내림차순 → 날짜·시작시간 오름차순)
+      function getRankedSlots(includeZeroWhenMany) {
+        const active = state.slots.filter((s) => s.status !== "취소");
+        const sorted = [...active].sort((a, b) => {
+          const diffVotes = getYesCount(b) - getYesCount(a);
+          if (diffVotes !== 0) return diffVotes;
+          if (a.date !== b.date) return a.date.localeCompare(b.date);
+          return a.startHour - b.startHour;
+        });
+
+        // 판단 규칙 5: 가용 시간 후보가 10개를 초과하면 0표 시간대는 3번 화면 순위표에서 숨김
+        // 단, 아직 아무도 투표하지 않아 모든 후보가 0표일 때는 빈 화면이 되지 않도록 유지
+        if (!includeZeroWhenMany && active.length > 10) {
+          const withVotes = sorted.filter((s) => getYesCount(s) > 0);
+          if (withVotes.length > 0) return withVotes;
+        }
+        return sorted;
+      }
+
+      // 팀원별 투표 참여율 계산 (1개 이상 슬롯에 '가능' 또는 '불가'로 응답한 팀원 비율)
+      function getParticipationInfo() {
+        const respondedIds = new Set();
+        state.slots.forEach((slot) => {
+          state.members.forEach((m) => {
+            if (slot.votes[m.id] === "가능" || slot.votes[m.id] === "불가") {
+              respondedIds.add(m.id);
+            }
+          });
+        });
+        const respondedMembers = state.members.filter((m) => respondedIds.has(m.id));
+        const unrespondedMembers = state.members.filter((m) => !respondedIds.has(m.id));
+        const rate = state.members.length
+          ? Math.round((respondedMembers.length / state.members.length) * 100)
+          : 0;
+        return {
+          rate,
+          respondedMembers,
+          unrespondedMembers
+        };
+      }
+
+      function getConfirmedSlot() {
+        return state.slots.find((s) => s.status === "확정") || null;
+      }
+
+      // 상단 공통 UI 업데이트
+      function updateChrome() {
+        const todayEl = document.getElementById("todayBadge");
+        todayEl.textContent = `오늘: ${formatShortDate(state.appToday)}`;
+
+        const hasSlots = state.slots.length > 0;
+        document.getElementById("tabScreen2").disabled = !hasSlots;
+        document.getElementById("tabScreen3").disabled = !hasSlots;
+        document.getElementById("tabScreen4").disabled = !state.rebalanceInfo;
+
+        document.querySelectorAll(".step-tab").forEach((btn) => {
+          const scr = Number(btn.dataset.screen);
+          btn.classList.toggle("active", scr === state.screen);
+        });
+      }
+
+      // 화면 렌더링 진입점
+      function render() {
+        updateChrome();
+        const main = document.getElementById("mainContent");
+        if (state.screen === 1) renderScreen1(main);
+        else if (state.screen === 2) renderScreen2(main);
+        else if (state.screen === 3) renderScreen3(main);
+        else if (state.screen === 4) renderScreen4(main);
+      }
+
+      // HTML 이스케이프
+      function esc(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      // ================= 화면 1: 일정 입력 =================
+      function renderScreen1(container) {
+        const hourOptsStart = HOURS.map((h) => `<option value="${h}">${formatHour(h)}</option>`).join("");
+        const hourOptsEnd = [10,11,12,13,14,15,16,17,18,19,20,21,22]
+          .map((h) => `<option value="${h}">${formatHour(h)}</option>`)
+          .join("");
+        const dayOpts = DAY_ORDER.map((d) => `<option value="${d}">${d}</option>`).join("");
+
+        const membersHtml = state.members
+          .map((m, idx) => {
+            const chips = m.unavailable
+              .map(
+                (u, uIdx) => `
+                <span class="unavail-chip">
+                  ${u.day} ${formatHour(u.start)}~${formatHour(u.end)}
+                  <button type="button" class="chip-del" data-action="del-unavail" data-midx="${idx}" data-uidx="${uIdx}" aria-label="삭제">×</button>
+                </span>`
+              )
+              .join("");
+
+            return `
+              <div class="member-block">
+                <div class="member-header">
+                  <input type="text" value="${esc(m.name)}" data-action="edit-name" data-midx="${idx}" placeholder="팀원 이름" />
+                  ${
+                    state.members.length > 2
+                      ? `<button type="button" class="small-btn danger" data-action="del-member" data-midx="${idx}">삭제</button>`
+                      : ""
+                  }
+                </div>
+                <div class="unavail-list">
+                  ${chips || '<span style="font-size:12px; color:#9ca3af;">등록된 불가능 시간 없음</span>'}
+                </div>
+                <div class="add-unavail-row">
+                  <select id="day_${idx}">${dayOpts}</select>
+                  <select id="start_${idx}" data-action="change-start" data-midx="${idx}">${hourOptsStart}</select>
+                  <span class="tilde-sep">~</span>
+                  <select id="end_${idx}">${hourOptsEnd}</select>
+                  <button type="button" class="small-btn" data-action="add-unavail" data-midx="${idx}">+추가</button>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        container.innerHTML = `
+          <section class="card">
+            <h2 class="card-title">1. 프로젝트 기간 &amp; 최소 회의 시간</h2>
+            <p class="sub-desc">회의를 잡을 날짜 범위와 최소로 필요한 회의 시간을 정하세요.</p>
+            <div class="field-grid">
+              <div class="field-group">
+                <label class="field-label" for="inputStartDate">시작일</label>
+                <input type="date" id="inputStartDate" value="${state.startDate}" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="inputEndDate">마감일</label>
+                <input type="date" id="inputEndDate" value="${state.endDate}" />
+              </div>
+            </div>
+            <div class="field-group" style="margin-bottom:0;">
+              <label class="field-label" for="inputMinDuration">최소 회의 시간 (분 단위 직접 입력)</label>
+              <div class="duration-input-row">
+                <input type="number" id="inputMinDuration" min="10" max="780" step="5" value="${state.minDuration}" placeholder="예: 60" />
+                <span class="duration-unit">분</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2 class="card-title">
+              <span>2. 팀원 &amp; 불가능한 시간</span>
+              <button type="button" class="small-btn" id="btnAddMember">+ 팀원 추가 (${state.members.length}명)</button>
+            </h2>
+            <p class="sub-desc">수업·알바 등 매주 안 되는 요일과 시간대를 넣어 주세요.</p>
+            ${membersHtml}
+          </section>
+
+          <button type="button" class="primary-btn" id="btnFindSlots">가용 시간 찾기</button>
+        `;
+
+        // 이벤트 바인딩
+        document.getElementById("inputStartDate").addEventListener("change", (e) => {
+          state.startDate = e.target.value;
+          invalidateDraftSlots();
+          saveState();
+        });
+        document.getElementById("inputEndDate").addEventListener("change", (e) => {
+          state.endDate = e.target.value;
+          invalidateDraftSlots();
+          saveState();
+        });
+
+        document.getElementById("inputMinDuration").addEventListener("input", (e) => {
+          const val = Number(e.target.value);
+          if (!Number.isNaN(val) && val > 0) {
+            state.minDuration = val;
+            invalidateDraftSlots();
+            saveState();
+          }
+        });
+
+        container.querySelectorAll('[data-action="change-start"]').forEach((sel) => {
+          sel.addEventListener("change", () => {
+            const midx = Number(sel.dataset.midx);
+            const startVal = Number(sel.value);
+            const endSel = document.getElementById(`end_${midx}`);
+            if (endSel && Number(endSel.value) <= startVal) {
+              endSel.value = String(Math.min(22, startVal + 1));
+            }
+          });
+        });
+
+        container.querySelectorAll('[data-action="edit-name"]').forEach((inp) => {
+          inp.addEventListener("input", () => {
+            const idx = Number(inp.dataset.midx);
+            state.members[idx].name = inp.value;
+            saveState();
+          });
+        });
+
+        container.querySelectorAll('[data-action="del-member"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            if (state.members.length <= 2) return;
+            const idx = Number(btn.dataset.midx);
+            state.members.splice(idx, 1);
+            if (state.selectedVoterIndex >= state.members.length) {
+              state.selectedVoterIndex = 0;
+            }
+            invalidateDraftSlots();
+            saveState();
+            render();
+          });
+        });
+
+        container.querySelectorAll('[data-action="del-unavail"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const midx = Number(btn.dataset.midx);
+            const uidx = Number(btn.dataset.uidx);
+            state.members[midx].unavailable.splice(uidx, 1);
+            invalidateDraftSlots();
+            saveState();
+            render();
+          });
+        });
+
+        container.querySelectorAll('[data-action="add-unavail"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const midx = Number(btn.dataset.midx);
+            const day = document.getElementById(`day_${midx}`).value;
+            const start = Number(document.getElementById(`start_${midx}`).value);
+            const end = Number(document.getElementById(`end_${midx}`).value);
+            if (end <= start) {
+              alert("종료 시각은 시작 시각보다 뒤여야 합니다.");
+              return;
+            }
+            // 같은 요일의 겹치거나 이어지는 불가능 시간 자동 병합
+            const list = state.members[midx].unavailable;
+            let newStart = start;
+            let newEnd = end;
+            const remaining = [];
+            list.forEach((item) => {
+              if (item.day === day && !(newEnd < item.start || newStart > item.end)) {
+                newStart = Math.min(newStart, item.start);
+                newEnd = Math.max(newEnd, item.end);
+              } else {
+                remaining.push(item);
+              }
+            });
+            remaining.push({ day, start: newStart, end: newEnd });
+            state.members[midx].unavailable = remaining;
+            invalidateDraftSlots();
+            saveState();
+            render();
+          });
+        });
+
+        document.getElementById("btnAddMember").addEventListener("click", () => {
+          const nextNum = state.members.length + 1;
+          state.members.push({
+            id: `m_${Date.now()}_${nextNum}`,
+            name: `팀원${nextNum}`,
+            unavailable: []
+          });
+          invalidateDraftSlots();
+          saveState();
+          render();
+        });
+
+        document.getElementById("btnFindSlots").addEventListener("click", () => {
+          const durationVal = Number(document.getElementById("inputMinDuration").value);
+          if (!durationVal || durationVal < 10) {
+            alert("최소 회의 시간은 10분 이상의 숫자로 입력해 주세요.");
+            return;
+          }
+          state.minDuration = durationVal;
+          if (!state.startDate || !state.endDate) {
+            alert("시작일과 마감일을 모두 입력해 주세요.");
+            return;
+          }
+          if (diffDays(state.startDate, state.endDate) < 0) {
+            alert("마감일은 시작일보다 같거나 뒤여야 합니다.");
+            return;
+          }
+          const hasEmptyName = state.members.some((m) => !m.name.trim());
+          if (hasEmptyName) {
+            alert("비어 있는 팀원 이름을 입력해 주세요.");
+            return;
+          }
+          state.members.forEach((m) => {
+            m.name = m.name.trim();
+          });
+          state.slots = generateDraftSlots();
+          state.rebalanceInfo = null;
+          state.selectedVoterIndex = 0;
+          if (state.slots.length === 0) {
+            alert("조건에 맞는 공통 가용 시간대가 없습니다. 기간이나 불가능 시간을 조정해 주세요.");
+            return;
+          }
+          state.screen = 2;
+          saveState();
+          render();
+        });
+      }
+
+      // ================= 화면 2: 가용 시간 캘린더 =================
+      function renderScreen2(container) {
+        const currentVoter = state.members[state.selectedVoterIndex] || state.members[0];
+        const confirmed = getConfirmedSlot();
+        const activeSlots = state.slots.filter((s) => s.status !== "취소");
+        const hasFallbackOnly = activeSlots.length > 0 && activeSlots.every((s) => s.isFallback);
+
+        const confirmedBanner = confirmed
+          ? `
+          <div class="alert-box alert-confirmed">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;">
+              <span class="badge badge-orange">확정 일정</span>
+              <span style="font-size:12px; color:#d95700;">${getYesCount(confirmed)}/${state.members.length}명 가능</span>
+            </div>
+            <div style="font-size:16px; font-weight:800; margin-bottom:8px;">
+              ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}
+            </div>
+            <button type="button" class="danger-btn" id="btnAbsentFromCal">일정 변동(불참)</button>
+          </div>`
+          : "";
+
+        const fallbackBanner = hasFallbackOnly
+          ? `
+          <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
+            전원(100%)이 동시에 비는 시간이 0개여서, 가장 많은 인원이 가능한 <strong>차선책 후보</strong>를 표시합니다.
+          </div>`
+          : "";
+
+        const voterButtons = state.members
+          .map(
+            (m, idx) => `
+            <button type="button" class="voter-btn ${idx === state.selectedVoterIndex ? "active" : ""}" data-action="select-voter" data-idx="${idx}">
+              ${esc(m.name)}
+            </button>`
+          )
+          .join("");
+
+        // 날짜별 그룹화
+        const byDate = {};
+        activeSlots.forEach((s) => {
+          if (!byDate[s.date]) byDate[s.date] = [];
+          byDate[s.date].push(s);
+        });
+
+        const calendarHtml = Object.keys(byDate)
+          .sort()
+          .map((dateStr) => {
+            const slotsHtml = byDate[dateStr]
+              .map((s) => {
+                const yesCount = getYesCount(s);
+                const total = state.members.length;
+                const isFull = yesCount === total;
+                const isConfirmed = s.status === "확정";
+                const myVote = s.votes[currentVoter.id];
+                const yesNames = getYesNames(s);
+
+                let badges = "";
+                if (isConfirmed) {
+                  badges += `<span class="badge" style="background:#ffffff; color:#d95700;">확정됨</span> `;
+                } else if (isFull) {
+                  badges += `<span class="badge badge-orange">전원 가능(1순위)</span> `;
+                } else if (s.isFallback) {
+                  badges += `<span class="badge badge-warn">차선책 후보</span> `;
+                } else {
+                  badges += `<span class="badge badge-light">가용 후보</span> `;
+                }
+
+                const myStateLabel =
+                  myVote === "가능" ? "내 투표: 가능 ✓" : myVote === "불가" ? "내 투표: 불가 ✕" : "눌러서 투표";
+                const isPast = s.date < state.appToday;
+                if (isPast) {
+                  badges += `<span class="badge" style="background:#e5e7eb; color:#4b5563;">지남</span>`;
+                }
+
+                return `
+                  <button type="button"
+                    class="slot-card ${myVote === "가능" ? "voted-by-me" : ""} ${isFull ? "full-match" : ""} ${isConfirmed ? "confirmed-slot" : ""} ${isPast ? "past-slot" : ""}"
+                    data-action="toggle-vote"
+                    data-slot-id="${s.id}">
+                    <div class="slot-top">
+                      <span class="slot-time">${formatHour(s.startHour)} ~ ${formatHour(s.endHour)}</span>
+                      <div>${badges}</div>
+                    </div>
+                    <div class="slot-meta">
+                      <span>${yesCount}/${total}명 가능</span>
+                      <span>${myStateLabel}</span>
+                    </div>
+                    <div class="voter-names">
+                      가능 팀원: ${yesNames.length > 0 ? esc(yesNames.join(", ")) : "아직 없음"}
+                    </div>
+                  </button>
+                `;
+              })
+              .join("");
+
+            return `
+              <div class="day-section">
+                <div class="day-title">
+                  <span>📅 ${formatShortDate(dateStr)}</span>
+                  <span style="color:var(--muted); font-weight:600;">${byDate[dateStr].length}개 후보</span>
+                </div>
+                <div class="slot-list">${slotsHtml}</div>
+              </div>
+            `;
+          })
+          .join("");
+
+        container.innerHTML = `
+          ${confirmedBanner}
+          ${fallbackBanner}
+          <section class="card">
+            <h2 class="card-title">투표할 팀원 선택</h2>
+            <p class="sub-desc">이름을 고른 뒤 아래 주황색 시간 칸을 눌러 참석 가능 여부를 표시하세요.</p>
+            <div class="voter-grid">${voterButtons}</div>
+          </section>
+
+          <section class="card">
+            <h2 class="card-title">
+              <span>공통 가용 시간 캘린더</span>
+              <span class="badge badge-light">총 ${activeSlots.length}개</span>
+            </h2>
+            ${calendarHtml || '<p class="sub-desc">표시할 가용 시간 후보가 없습니다.</p>'}
+          </section>
+
+          <button type="button" class="primary-btn" id="btnGoStatus">투표 현황 보기</button>
+        `;
+
+        container.querySelectorAll('[data-action="select-voter"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            state.selectedVoterIndex = Number(btn.dataset.idx);
+            saveState();
+            render();
+          });
+        });
+
+        container.querySelectorAll('[data-action="toggle-vote"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const slotId = btn.dataset.slotId;
+            const slot = state.slots.find((s) => s.id === slotId);
+            if (!slot) return;
+            const voterId = currentVoter.id;
+            const cur = slot.votes[voterId];
+            slot.votes[voterId] = cur === "가능" ? "미응답" : "가능";
+            saveState();
+            render();
+          });
+        });
+
+        document.getElementById("btnGoStatus").addEventListener("click", () => {
+          state.screen = 3;
+          saveState();
+          render();
+        });
+
+        const absentBtn = document.getElementById("btnAbsentFromCal");
+        if (absentBtn) {
+          absentBtn.addEventListener("click", () => openAbsentModal());
+        }
+      }
+
+      // ================= 화면 3: 투표 현황 =================
+      function renderScreen3(container) {
+        const total = state.members.length;
+        const activeCount = state.slots.filter((s) => s.status !== "취소").length;
+        const rankedVisible = getRankedSlots(false);
+        const top3 = rankedVisible.slice(0, 3);
+        const hiddenZeroCount = activeCount > 10 ? activeCount - rankedVisible.length : 0;
+
+        const part = getParticipationInfo();
+        const daysLeft = diffDays(state.appToday, state.endDate);
+        const confirmed = getConfirmedSlot();
+
+        // 판단 규칙 3: 마감일 2일 전 이하인데 참여율 50% 미만이면 빨간색 경고 문구 + 미응답자 이름
+        const showUrgentWarning = daysLeft <= 2 && part.rate < 50;
+
+        const warningHtml = showUrgentWarning
+          ? `
+          <div class="alert-box alert-danger">
+            ⚠️ 미투표 팀원 독려 필요 (마감 ${daysLeft <= 0 ? "임박/지남" : `D-${daysLeft}`}, 참여율 ${part.rate}%)<br/>
+            <span style="font-weight:600;">미응답자: ${part.unrespondedMembers.map((m) => esc(m.name)).join(", ")}</span>
+          </div>`
+          : "";
+
+        const top3Html = top3
+          .map((s, idx) => {
+            const yesCount = getYesCount(s);
+            const pct = Math.round((yesCount / total) * 100);
+            const isFull = yesCount === total;
+            const isConfirmed = s.status === "확정";
+
+            return `
+              <div class="rank-card ${isFull ? "top-full" : ""}">
+                <div class="rank-header">
+                  <span class="rank-title">${idx + 1}순위: ${formatShortDate(s.date)} ${formatHour(s.startHour)}~${formatHour(s.endHour)}</span>
+                  <div>
+                    ${isFull ? '<span class="badge badge-orange">전원 가능(1순위)</span>' : ""}
+                    ${s.isFallback ? '<span class="badge badge-warn">차선책 후보</span>' : ""}
+                    ${isConfirmed ? '<span class="badge badge-green">현재 확정</span>' : ""}
+                  </div>
+                </div>
+                <div style="font-size:13px; font-weight:700; color:#4b5563; margin-bottom:8px;">
+                  득표: ${yesCount}/${total}명 (${pct}%) · ${yesCount > 0 ? esc(getYesNames(s).join(", ")) : "투표 없음"}
+                </div>
+                <div class="btn-row">
+                  <button type="button" class="${idx === 0 ? "primary-btn" : "secondary-btn"}" style="padding:10px; font-size:14px;" data-action="confirm-slot" data-slot-id="${s.id}">
+                    ${isConfirmed ? "일정 확정됨" : "이 시간으로 확정"}
+                  </button>
+                  ${
+                    isConfirmed
+                      ? `<button type="button" class="danger-btn" style="padding:10px; font-size:14px;" data-action="open-absent">일정 변동(불참)</button>`
+                      : ""
+                  }
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        const memberStatusHtml = state.members
+          .map((m) => {
+            const responded = part.respondedMembers.some((rm) => rm.id === m.id);
+            return `
+              <div class="member-status-item">
+                <span>${esc(m.name)}</span>
+                ${
+                  responded
+                    ? '<span class="badge badge-green">투표 참여</span>'
+                    : '<span class="badge badge-red">미응답</span>'
+                }
+              </div>
+            `;
+          })
+          .join("");
+
+        container.innerHTML = `
+          ${warningHtml}
+          <section class="card">
+            <h2 class="card-title">최다 득표 회의 시간 Top 3</h2>
+            ${
+              hiddenZeroCount > 0
+                ? `<p class="sub-desc">후보가 10개를 초과하여 0표 시간대 ${hiddenZeroCount}개는 자동으로 숨겼습니다.</p>`
+                : `<p class="sub-desc">투표 수가 같으면 날짜·시간이 빠른 순으로 정렬됩니다.</p>`
+            }
+            ${top3Html || '<p class="sub-desc">표시할 순위 후보가 없습니다. 2번 화면에서 먼저 투표를 진행해 주세요.</p>'}
+          </section>
+
+          <section class="card">
+            <h2 class="card-title">팀원별 투표 참여율</h2>
+            <div class="progress-wrap">
+              <div class="progress-label">
+                <span>전체 참여율</span>
+                <span>${part.rate}% (${part.respondedMembers.length}/${total}명)</span>
+              </div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width:${part.rate}%;"></div>
+              </div>
+            </div>
+            <div class="member-status-list">${memberStatusHtml}</div>
+          </section>
+
+          <button type="button" class="secondary-btn" id="btnBackToCal">2. 캘린더로 돌아가기</button>
+        `;
+
+        container.querySelectorAll('[data-action="confirm-slot"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const slotId = btn.dataset.slotId;
+            state.slots.forEach((s) => {
+              if (s.status === "확정") s.status = "후보";
+            });
+            const target = state.slots.find((s) => s.id === slotId);
+            if (target) target.status = "확정";
+            state.screen = 2;
+            saveState();
+            render();
+          });
+        });
+
+        container.querySelectorAll('[data-action="open-absent"]').forEach((btn) => {
+          btn.addEventListener("click", () => openAbsentModal());
+        });
+
+        document.getElementById("btnBackToCal").addEventListener("click", () => {
+          state.screen = 2;
+          saveState();
+          render();
+        });
+      }
+
+      // ================= 화면 4: 재조율 알림 =================
+      function renderScreen4(container) {
+        const info = state.rebalanceInfo;
+        if (!info) {
+          container.innerHTML = `
+            <section class="card">
+              <h2 class="card-title">재조율 알림</h2>
+              <p class="sub-desc">현재 발생한 일정 변동이 없습니다.</p>
+              <button type="button" class="primary-btn" id="btnGoCalEmpty">캘린더로 이동</button>
+            </section>
+          `;
+          document.getElementById("btnGoCalEmpty").addEventListener("click", () => {
+            state.screen = 2;
+            saveState();
+            render();
+          });
+          return;
+        }
+
+        const total = state.members.length;
+        const candidates = getRankedSlots(true).filter((s) => s.id !== info.cancelledSlotId);
+        const recommended = candidates[0] || null;
+        const others = candidates.slice(1, 3);
+
+        container.innerHTML = `
+          <div class="alert-box alert-danger">
+            ⚠️ 일정 변동 발생!<br/>
+            ${esc(info.cancelledLabel)} — <strong>'${esc(info.absentMemberName)}' 불참 선택</strong>
+          </div>
+
+          <section class="card">
+            <h2 class="card-title">기존 확정 일정 해제 안내</h2>
+            <p class="sub-desc" style="margin-bottom:0;">
+              확정된 일정에서 불참자가 발생하여 기존 일정이 해제되었습니다. 아래 차순위 가용 시간대로 바로 변경할 수 있습니다.
+            </p>
+          </section>
+
+          <section class="card" style="border:2px solid var(--primary); background:#fff7ed;">
+            <h2 class="card-title">
+              <span>추천 차순위 (새 1순위)</span>
+              <span class="badge badge-orange">자동 추천</span>
+            </h2>
+            ${
+              recommended
+                ? `
+                <div style="font-size:17px; font-weight:800; margin-bottom:6px;">
+                  ${formatShortDate(recommended.date)} ${formatHour(recommended.startHour)}~${formatHour(recommended.endHour)}
+                </div>
+                <div style="font-size:13px; color:#4b5563; font-weight:700; margin-bottom:12px;">
+                  현재 가능 표: ${getYesCount(recommended)}/${total}명
+                  ${recommended.isFallback ? "· (차선책 후보)" : ""}
+                </div>
+                <button type="button" class="primary-btn" id="btnApplyRebalance">차순위 시간으로 변경</button>
+                `
+                : `<p class="sub-desc" style="margin-bottom:0;">대체할 수 있는 다른 가용 시간 후보가 없습니다. 1번 화면에서 조건을 조정해 주세요.</p>`
+            }
+          </section>
+
+          ${
+            others.length > 0
+              ? `
+              <section class="card">
+                <h2 class="card-title">기타 대체 후보</h2>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  ${others
+                    .map(
+                      (o, i) => `
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px; background:#f9fafb; border-radius:10px; font-size:13px; font-weight:700;">
+                      <span>대체 ${i + 2}: ${formatShortDate(o.date)} ${formatHour(o.startHour)}~${formatHour(o.endHour)} (${getYesCount(o)}/${total}명)</span>
+                      <button type="button" class="small-btn" data-action="apply-alt-slot" data-slot-id="${o.id}">선택</button>
+                    </div>`
+                    )
+                    .join("")}
+                </div>
+              </section>`
+              : ""
+          }
+        `;
+
+        const applyBtn = document.getElementById("btnApplyRebalance");
+        if (applyBtn && recommended) {
+          applyBtn.addEventListener("click", () => {
+            state.slots.forEach((s) => {
+              if (s.status === "확정") s.status = "후보";
+            });
+            recommended.status = "확정";
+            state.rebalanceInfo = null;
+            state.screen = 2;
+            saveState();
+            render();
+          });
+        }
+
+        container.querySelectorAll('[data-action="apply-alt-slot"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const target = state.slots.find((s) => s.id === btn.dataset.slotId);
+            if (!target) return;
+            state.slots.forEach((s) => {
+              if (s.status === "확정") s.status = "후보";
+            });
+            target.status = "확정";
+            state.rebalanceInfo = null;
+            state.screen = 2;
+            saveState();
+            render();
+          });
+        });
+      }
+
+      // 불참 팀원 선택 모달 열기 (판단 규칙 2)
+      function openAbsentModal() {
+        const confirmed = getConfirmedSlot();
+        if (!confirmed) {
+          alert("현재 확정된 일정이 없습니다.");
+          return;
+        }
+        const modal = document.getElementById("absentModal");
+        const listEl = document.getElementById("absentMemberList");
+        listEl.innerHTML = state.members
+          .map((m) => {
+            const wasYes = confirmed.votes[m.id] === "가능";
+            return `
+            <button type="button" class="secondary-btn" style="padding:10px; font-size:14px;" data-absent-id="${m.id}">
+              ${esc(m.name)} 불참 ${wasYes ? "(참석 예정)" : ""}
+            </button>`;
+          })
+          .join("");
+
+        listEl.querySelectorAll("[data-absent-id]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const memberId = btn.dataset.absentId;
+            const member = state.members.find((m) => m.id === memberId);
+            confirmed.votes[memberId] = "불가";
+            confirmed.status = "취소";
+            state.rebalanceInfo = {
+              cancelledSlotId: confirmed.id,
+              cancelledLabel: `${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}`,
+              absentMemberName: member ? member.name : "팀원"
+            };
+            modal.classList.add("hidden");
+            state.screen = 4;
+            saveState();
+            render();
+          });
+        });
+
+        modal.classList.remove("hidden");
+      }
+
+      // 상단 공통 버튼 이벤트
+      document.getElementById("btnCloseAbsentModal").addEventListener("click", () => {
+        document.getElementById("absentModal").classList.add("hidden");
+      });
+
+      document.getElementById("btnResetAll").addEventListener("click", () => {
+        if (!confirm("저장된 모든 데이터를 지우고 첫 화면으로 돌아갈까요?")) return;
+        localStorage.removeItem(STORAGE_KEY);
+        state = createInitialState();
+        saveState();
+        render();
+      });
+
+      document.querySelectorAll(".step-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const scr = Number(btn.dataset.screen);
+          if (btn.disabled) return;
+          state.screen = scr;
+          saveState();
+          render();
+        });
+      });
+
+      // 초기 실행
+      render();
+    })();
+  </script>
+</body>
+</html>
