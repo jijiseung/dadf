@@ -1183,6 +1183,12 @@
           invalidateDraftSlots();
           saveState();
           render();
+          const newInput = document.querySelector(`[data-action="edit-name"][data-midx="${nextNum - 1}"]`);
+          if (newInput) {
+            newInput.focus();
+            newInput.select();
+            newInput.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
         });
 
         document.getElementById("btnFindSlots").addEventListener("click", () => {
@@ -1250,12 +1256,13 @@
           : "";
 
         const voterButtons = state.members
-          .map(
-            (m, idx) => `
+          .map((m, idx) => {
+            const votedCount = activeSlots.filter((s) => s.votes[m.id] === "가능").length;
+            return `
             <button type="button" class="voter-btn ${idx === state.selectedVoterIndex ? "active" : ""}" data-action="select-voter" data-idx="${idx}">
-              ${esc(m.name)}
-            </button>`
-          )
+              ${esc(m.name)} (${votedCount})
+            </button>`;
+          })
           .join("");
 
         // 날짜별 그룹화
@@ -1301,7 +1308,7 @@
                     data-action="toggle-vote"
                     data-slot-id="${s.id}">
                     <div class="slot-top">
-                      <span class="slot-time">${formatHour(s.startHour)} ~ ${formatHour(s.endHour)}</span>
+                      <span class="slot-time">${formatHour(s.startHour)} ~ ${formatHour(s.endHour)} <small style="font-weight:700; opacity:0.85;">(${s.endHour - s.startHour}시간)</small></span>
                       <div>${badges}</div>
                     </div>
                     <div class="slot-meta">
