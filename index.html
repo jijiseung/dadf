@@ -869,7 +869,8 @@
         const daysCount = diffDays(state.startDate, state.endDate);
         if (daysCount < 0) return [];
 
-        const result = [];
+        const fullMatches = [];
+        const partialMatches = [];
 
         for (let offset = 0; offset <= daysCount; offset++) {
           const dateStr = addDaysStr(state.startDate, offset);
@@ -886,7 +887,6 @@
           });
 
           // 1차: 전원(100%)이 동시에 맞는 연속 블록 추출
-          const usedHours = new Set();
           let runStart = null;
           for (let i = 0; i <= hourInfo.length; i++) {
             const cur = hourInfo[i];
@@ -895,12 +895,11 @@
             } else if (runStart !== null) {
               const endHour = cur ? cur.hour : 22;
               if ((endHour - runStart) * 60 >= minMinutes) {
-                for (let hh = runStart; hh < endHour; hh++) usedHours.add(hh);
                 const votes = {};
                 state.members.forEach((m) => {
                   votes[m.id] = "미응답";
                 });
-                result.push({
+                fullMatches.push({
                   id: `${dateStr}_${runStart}_${endHour}_full`,
                   date: dateStr,
                   dayKo: dayKo,
@@ -917,8 +916,9 @@
             }
           }
 
-          // 2차: 전원 블록을 제외한 나머지 시간 중 2명 이상 겹치는 연속 블록도 후보로 추출 (래터스밋 겹침 시각화)
+          // 2차: 전원 맞는 시간이 없을 때를 대비해 2명 이상 겹치는 연속 블록 추출
           if (totalMembers >= 2) {
+            const usedHours = new Set();
             for (let target = totalMembers - 1; target >= 2; target--) {
               let pStart = null;
               for (let i = 0; i <= hourInfo.length; i++) {
@@ -930,11 +930,8 @@
                   if ((endHour - pStart) * 60 >= minMinutes) {
                     const slice = hourInfo.filter((x) => x.hour >= pStart && x.hour < endHour);
                     const minCnt = Math.min(...slice.map((x) => x.count));
-                    // 해당 블록 내 모든 시간에 공통으로 포함된 팀원 이름
                     const commonNames = state.members
-                      .filter((m) =>
-                        slice.every((x) => x.names.includes(m.name))
-                      )
+                      .filter((m) => slice.every((x) => x.names.includes(m.name)))
                       .map((m) => m.name);
 
                     for (let hh = pStart; hh < endHour; hh++) usedHours.add(hh);
@@ -942,7 +939,7 @@
                     state.members.forEach((m) => {
                       votes[m.id] = "미응답";
                     });
-                    result.push({
+                    partialMatches.push({
                       id: `${dateStr}_${pStart}_${endHour}_part`,
                       date: dateStr,
                       dayKo: dayKo,
@@ -962,7 +959,9 @@
           }
         }
 
-        // 날짜 및 시작 시각 순 정렬
+        // 전원 시간이 1개라도 있으면 전원 시간만, 0개일 때만 차선책(2인 이상 겹침) 반환
+        const result = fullMatches.length > 0 ? fullMatches : partialMatches;
+
         result.sort((a, b) => {
           if (a.date !== b.date) return a.date.localeCompare(b.date);
           return a.startHour - b.startHour;
@@ -1367,9 +1366,20 @@
             );
             return;
           }
+          let autoConfirmed = false;
+          if (state.slots.length === 1 && !state.slots[0].isFallback) {
+            state.slots[0].status = "확정";
+            state.members.forEach((m) => {
+              state.slots[0].votes[m.id] = "가능";
+            });
+            autoConfirmed = true;
+          }
           state.screen = 2;
           saveState();
           render();
+          if (autoConfirmed) {
+            showToast("전원 가능한 시간이 1개여서 자동으로 확정되었습니다!");
+          }
         });
       }
 
