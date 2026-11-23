@@ -498,19 +498,19 @@
     .slot-card {
       width: 100%;
       text-align: left;
-      padding: 12px;
+      padding: 12px 14px;
       border-radius: 12px;
-      border: 2px solid var(--primary-border);
-      background: var(--primary-light);
+      border: 1.5px solid #fed7aa;
+      background: #ffffff;
       cursor: pointer;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
 
     .slot-card.voted-by-me {
+      background: #fff7ed;
       border-color: var(--primary);
-      box-shadow: 0 0 0 1px var(--primary);
     }
 
     .slot-card.full-match {
@@ -522,6 +522,18 @@
       background: #ff6b00;
       border-color: var(--primary-dark);
       color: #ffffff;
+    }
+
+    .add-time-btn {
+      padding: 8px 6px;
+      border-radius: 8px;
+      border: 1px solid var(--primary);
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
     }
 
     .slot-card.confirmed-slot .slot-meta,
@@ -1147,7 +1159,7 @@
                   <select id="start_${idx}" data-action="change-start" data-midx="${idx}">${hourOptsStart}</select>
                   <span class="tilde-sep">~</span>
                   <select id="end_${idx}">${hourOptsEnd}</select>
-                  <button type="button" class="small-btn" data-action="add-avail" data-midx="${idx}">+추가</button>
+                  <button type="button" class="add-time-btn" data-action="add-avail" data-midx="${idx}">+추가</button>
                 </div>
               </div>
             `;
@@ -1158,9 +1170,8 @@
           <section class="card">
             <h2 class="card-title">
               <span>1. 프로젝트 기간 &amp; 최소 회의 시간</span>
-              <button type="button" class="small-btn" id="btnClearToBlank">빈 양식으로 비우기</button>
+              <button type="button" class="small-btn" id="btnClearToBlank">빈 양식으로</button>
             </h2>
-            <p class="sub-desc">회의를 잡을 날짜 범위와 최소로 필요한 회의 시간을 정하세요.</p>
             <div class="field-grid">
               <div class="field-group">
                 <label class="field-label" for="inputStartDate">시작일</label>
@@ -1185,7 +1196,6 @@
               <span>2. 팀원 &amp; 가능한 시간</span>
               <button type="button" class="small-btn" id="btnAddMember">+ 팀원 추가 (${state.members.length}명)</button>
             </h2>
-            <p class="sub-desc">수업·알바 외에 회의에 참여할 수 있는 요일과 시간대를 넣어 주세요.</p>
             ${membersHtml}
           </section>
 
@@ -1469,10 +1479,18 @@
                 }
 
                 const myStateLabel =
-                  myVote === "가능" ? "내 투표: 가능 ✓" : myVote === "불가" ? "내 투표: 불가 ✕" : "눌러서 투표";
+                  myVote === "가능" ? "내 투표 ✓" : myVote === "불가" ? "내 투표 ✕" : "눌러서 투표";
                 const isPast = s.date < state.appToday;
                 if (isPast) {
                   badges += `<span class="badge" style="background:#e5e7eb; color:#4b5563;">지남</span>`;
+                }
+
+                const extraInfoParts = [];
+                if (s.isFallback && Array.isArray(s.matchedNames) && s.matchedNames.length > 0) {
+                  extraInfoParts.push(`겹침: ${esc(s.matchedNames.join(", "))}`);
+                }
+                if (yesNames.length > 0) {
+                  extraInfoParts.push(`투표: ${esc(yesNames.join(", "))}`);
                 }
 
                 return `
@@ -1481,20 +1499,18 @@
                     data-action="toggle-vote"
                     data-slot-id="${s.id}">
                     <div class="slot-top">
-                      <span class="slot-time">${formatHour(s.startHour)} ~ ${formatHour(s.endHour)} <small style="font-weight:700; opacity:0.85;">(${s.endHour - s.startHour}시간)</small></span>
+                      <span class="slot-time">${formatHour(s.startHour)}~${formatHour(s.endHour)} <small style="font-weight:700; opacity:0.8;">(${s.endHour - s.startHour}시간)</small></span>
                       <div>${badges}</div>
                     </div>
                     <div class="slot-meta">
                       <span>${yesCount}/${total}명 가능</span>
                       <span>${myStateLabel}</span>
                     </div>
-                    <div class="voter-names">
-                      ${
-                        Array.isArray(s.matchedNames) && s.matchedNames.length > 0
-                          ? `겹친 팀원: ${esc(s.matchedNames.join(", "))}<br/>`
-                          : ""
-                      }투표 가능: ${yesNames.length > 0 ? esc(yesNames.join(", ")) : "아직 없음"}
-                    </div>
+                    ${
+                      extraInfoParts.length > 0
+                        ? `<div class="voter-names">${extraInfoParts.join(" · ")}</div>`
+                        : ""
+                    }
                   </button>
                 `;
               })
@@ -1517,7 +1533,6 @@
           ${fallbackBanner}
           <section class="card">
             <h2 class="card-title">투표할 팀원 선택</h2>
-            <p class="sub-desc">이름을 고른 뒤 아래 주황색 시간 칸을 눌러 참석 가능 여부를 표시하세요.</p>
             <div class="voter-grid">${voterButtons}</div>
           </section>
 
@@ -1623,11 +1638,11 @@
         // 판단 규칙 3: 마감일 2일 전 이하인데 참여율 50% 미만이면 빨간색 경고 문구 + 미응답자 이름
         const showUrgentWarning = daysLeft <= 2 && part.rate < 50;
 
-        // 판단 규칙 6: 1표 이상 투표가 진행되었는데 1순위 후보가 과반수(50% 초과) 미만이면 재조율 안내
+        // 판단 규칙 6: 1표 이상 투표가 진행되었는데 확정 일정이 없고 1순위 후보가 과반수(50% 초과) 미만이면 재조율 안내
         const totalVotesCast = rankedVisible.reduce((sum, s) => sum + getYesCount(s), 0);
         const top1 = top3[0] || null;
         const top1Votes = top1 ? getYesCount(top1) : 0;
-        const showMajorityWarning = totalVotesCast > 0 && top1Votes <= total / 2;
+        const showMajorityWarning = !confirmed && totalVotesCast > 0 && top1Votes <= total / 2;
 
         const autoConfirmBannerHtml = autoConfirmedByTopVote
           ? `
@@ -1712,8 +1727,8 @@
             <h2 class="card-title">최다 득표 회의 시간 Top 3</h2>
             ${
               hiddenZeroCount > 0
-                ? `<p class="sub-desc">후보가 10개를 초과하여 0표 시간대 ${hiddenZeroCount}개는 자동으로 숨겼습니다.</p>`
-                : `<p class="sub-desc">투표 수가 같으면 날짜·시간이 빠른 순으로 정렬됩니다.</p>`
+                ? `<p class="sub-desc">후보가 10개를 초과하여 0표 시간대 ${hiddenZeroCount}개는 숨겼습니다.</p>`
+                : ""
             }
             ${top3Html || '<p class="sub-desc">표시할 순위 후보가 없습니다. 2번 화면에서 먼저 투표를 진행해 주세요.</p>'}
           </section>
@@ -1851,21 +1866,10 @@
           <div class="alert-box ${isLowVotes ? "" : "alert-danger"}" style="${isLowVotes ? "background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;" : ""}">
             ${
               isLowVotes
-                ? `⚠️ 과반수 미달로 재조율이 필요합니다!<br/>1순위 후보(${esc(info.cancelledLabel)})가 팀원 절반을 넘지 못했습니다.`
-                : `⚠️ 일정 변동 발생!<br/>${esc(info.cancelledLabel)} — <strong>'${esc(info.absentMemberName)}' 불참 선택</strong>`
+                ? `⚠️ 과반수 미달로 재조율이 필요합니다!<br/><span style="font-weight:600;">1순위 후보(${esc(info.cancelledLabel)})가 팀원 절반을 넘지 못했습니다.</span>`
+                : `⚠️ 일정 변동 발생: ${esc(info.cancelledLabel)} ('${esc(info.absentMemberName)}' 불참)<br/><span style="font-weight:600;">아래에서 기존 일정을 유지하거나 차순위 시간으로 변경하세요.</span>`
             }
           </div>
-
-          <section class="card">
-            <h2 class="card-title">${isLowVotes ? "과반수 미달 안내" : "기존 확정 일정 안내"}</h2>
-            <p class="sub-desc" style="margin-bottom:0;">
-              ${
-                isLowVotes
-                  ? "아직 과반수 표가 모이지 않았습니다. 아래 차순위 후보 중 하나를 확정하거나, 캘린더에서 추가 투표를 진행해 주세요."
-                  : "불참자를 제외하고 기존 일정으로 그대로 진행하거나, 아래 차순위 가용 시간대로 변경할 수 있습니다."
-              }
-            </p>
-          </section>
 
           ${keepIsBetter ? keepCardHtml : ""}
 
