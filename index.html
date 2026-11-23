@@ -1591,6 +1591,27 @@
       function renderScreen3(container) {
         const total = state.members.length;
         const activeCount = state.slots.filter((s) => s.status !== "취소").length;
+        const activeAll = getRankedSlots(true);
+        const top1All = activeAll[0] || null;
+        const top1AllVotes = top1All ? getYesCount(top1All) : 0;
+        const tiedTopCount =
+          top1AllVotes > 0
+            ? activeAll.filter((s) => getYesCount(s) === top1AllVotes).length
+            : 0;
+
+        let autoConfirmedByTopVote = false;
+        if (
+          !getConfirmedSlot() &&
+          !state.rebalanceInfo &&
+          top1All &&
+          top1AllVotes > 0 &&
+          tiedTopCount === 1
+        ) {
+          top1All.status = "확정";
+          saveState();
+          autoConfirmedByTopVote = true;
+        }
+
         const rankedVisible = getRankedSlots(false);
         const top3 = rankedVisible.slice(0, 3);
         const hiddenZeroCount = activeCount > 10 ? activeCount - rankedVisible.length : 0;
@@ -1607,6 +1628,13 @@
         const top1 = top3[0] || null;
         const top1Votes = top1 ? getYesCount(top1) : 0;
         const showMajorityWarning = totalVotesCast > 0 && top1Votes <= total / 2;
+
+        const autoConfirmBannerHtml = autoConfirmedByTopVote
+          ? `
+          <div class="alert-box alert-confirmed">
+            🏆 겹치는 최다 득표 시간이 없어 <strong>${formatShortDate(top1All.date)} ${formatHour(top1All.startHour)}~${formatHour(top1All.endHour)}</strong> 일정이 자동 확정되었습니다!
+          </div>`
+          : "";
 
         const warningHtml = showUrgentWarning
           ? `
@@ -1677,6 +1705,7 @@
           .join("");
 
         container.innerHTML = `
+          ${autoConfirmBannerHtml}
           ${warningHtml}
           ${majorityHtml}
           <section class="card">
