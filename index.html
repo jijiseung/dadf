@@ -659,18 +659,62 @@
     .hidden {
       display: none !important;
     }
+
+    .filter-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .filter-btn {
+      padding: 8px 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #f9fafb;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .filter-btn.active {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: var(--primary-dark);
+    }
+
+    .toast-msg {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
   <div class="app-shell">
-    <!-- 상단 헤더 & 초기화 버튼 -->
+    <!-- 상단 헤더 & 초기화·접이식 테스트 도구 -->
     <header class="top-header">
       <div class="header-row">
-        <div class="brand">⏰ 타임 핏</div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <div class="today-pill" id="todayBadge">오늘: -</div>
-          <button type="button" class="test-btn reset" style="flex:none; padding:5px 10px;" id="btnResetAll">처음부터 다시</button>
+        <div class="brand" style="font-size:17px; white-space:nowrap;">⏰ 타임 핏</div>
+        <div style="display:flex; align-items:center; gap:4px; flex-wrap:nowrap;">
+          <div class="today-pill" id="todayBadge" style="font-size:11px; padding:4px 7px;">오늘 -</div>
+          <button type="button" class="test-btn" style="flex:none; padding:5px 6px; font-size:11px;" id="btnToggleTest">테스트 ▼</button>
+          <button type="button" class="test-btn reset" style="flex:none; padding:5px 6px; font-size:11px;" id="btnResetAll">처음부터 다시</button>
         </div>
+      </div>
+      <div class="test-bar hidden" id="testDrawer">
+        <button type="button" class="test-btn" id="btnNextDay">다음 날로 이동 (+1일)</button>
       </div>
     </header>
 
@@ -751,6 +795,7 @@
         return {
           appToday: today,
           screen: 1,
+          calendarFilter: "all",
           startDate: today,
           endDate: addDaysStr(today, 7),
           minDuration: 60,
@@ -805,6 +850,7 @@
           const parsed = JSON.parse(raw);
           if (!parsed || !Array.isArray(parsed.members)) return createInitialState();
           parsed.appToday = getRealTodayStr();
+          if (!parsed.calendarFilter) parsed.calendarFilter = "all";
           return parsed;
         } catch (e) {
           return createInitialState();
@@ -997,6 +1043,47 @@
           .replace(/"/g, "&quot;");
       }
 
+      // 토스트 안내 & 카톡 공유 문구 복사
+      function showToast(msg) {
+        const old = document.querySelector(".toast-msg");
+        if (old) old.remove();
+        const el = document.createElement("div");
+        el.className = "toast-msg";
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => {
+          el.remove();
+        }, 2200);
+      }
+
+      function copyShareText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(
+            () => showToast("카톡 안내 문구를 복사했습니다!"),
+            () => fallbackCopy(text)
+          );
+        } else {
+          fallbackCopy(text);
+        }
+      }
+
+      function fallbackCopy(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+          document.execCommand("copy");
+          showToast("카톡 안내 문구를 복사했습니다!");
+        } catch (e) {
+          alert("복사에 실패했습니다. 아래 문구를 직접 복사해 주세요:\n\n" + text);
+        }
+        document.body.removeChild(ta);
+      }
+
       // ================= 화면 1: 일정 입력 =================
       function renderScreen1(container) {
         const hourOptsStart = HOURS.map((h) => `<option value="${h}">${formatHour(h)}</option>`).join("");
@@ -1044,7 +1131,10 @@
 
         container.innerHTML = `
           <section class="card">
-            <h2 class="card-title">1. 프로젝트 기간 &amp; 최소 회의 시간</h2>
+            <h2 class="card-title">
+              <span>1. 프로젝트 기간 &amp; 최소 회의 시간</span>
+              <button type="button" class="small-btn" id="btnClearToBlank">빈 양식으로 비우기</button>
+            </h2>
             <p class="sub-desc">회의를 잡을 날짜 범위와 최소로 필요한 회의 시간을 정하세요.</p>
             <div class="field-grid">
               <div class="field-group">
@@ -1078,6 +1168,18 @@
         `;
 
         // 이벤트 바인딩
+        document.getElementById("btnClearToBlank").addEventListener("click", () => {
+          if (!confirm("예시 팀원과 불가능 시간을 비우고 새 팀플 양식으로 시작할까요?")) return;
+          state.members = [
+            { id: `m_${Date.now()}_1`, name: "", unavailable: [] },
+            { id: `m_${Date.now()}_2`, name: "", unavailable: [] }
+          ];
+          state.selectedVoterIndex = 0;
+          invalidateDraftSlots();
+          saveState();
+          render();
+        });
+
         document.getElementById("inputStartDate").addEventListener("change", (e) => {
           state.startDate = e.target.value;
           invalidateDraftSlots();
@@ -1244,7 +1346,10 @@
             <div style="font-size:16px; font-weight:800; margin-bottom:8px;">
               ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}
             </div>
-            <button type="button" class="danger-btn" id="btnAbsentFromCal">일정 변동(불참)</button>
+            <div class="btn-row">
+              <button type="button" class="secondary-btn" style="padding:10px; font-size:13px;" id="btnCopyConfirmedCal">카톡 안내 복사</button>
+              <button type="button" class="danger-btn" style="padding:10px; font-size:13px;" id="btnAbsentFromCal">일정 변동(불참)</button>
+            </div>
           </div>`
           : "";
 
@@ -1265,9 +1370,21 @@
           })
           .join("");
 
+        // 필터 적용
+        const filteredSlots = activeSlots.filter((s) => {
+          if (state.calendarFilter === "week") {
+            const diff = diffDays(state.appToday, s.date);
+            return diff >= 0 && diff <= 6;
+          }
+          if (state.calendarFilter === "mine") {
+            return s.votes[currentVoter.id] === "가능";
+          }
+          return true;
+        });
+
         // 날짜별 그룹화
         const byDate = {};
-        activeSlots.forEach((s) => {
+        filteredSlots.forEach((s) => {
           if (!byDate[s.date]) byDate[s.date] = [];
           byDate[s.date].push(s);
         });
@@ -1347,13 +1464,35 @@
           <section class="card">
             <h2 class="card-title">
               <span>공통 가용 시간 캘린더</span>
-              <span class="badge badge-light">총 ${activeSlots.length}개</span>
+              <span class="badge badge-light">표시 ${filteredSlots.length}개 / 총 ${activeSlots.length}개</span>
             </h2>
-            ${calendarHtml || '<p class="sub-desc">표시할 가용 시간 후보가 없습니다.</p>'}
+            <div class="filter-row">
+              <button type="button" class="filter-btn ${state.calendarFilter === "all" ? "active" : ""}" data-action="set-filter" data-filter="all">전체 보기</button>
+              <button type="button" class="filter-btn ${state.calendarFilter === "week" ? "active" : ""}" data-action="set-filter" data-filter="week">이번 주만</button>
+              <button type="button" class="filter-btn ${state.calendarFilter === "mine" ? "active" : ""}" data-action="set-filter" data-filter="mine">내가 투표한 칸</button>
+            </div>
+            ${calendarHtml || '<p class="sub-desc">선택한 필터 조건에 맞는 시간 후보가 없습니다.</p>'}
           </section>
 
           <button type="button" class="primary-btn" id="btnGoStatus">투표 현황 보기</button>
         `;
+
+        container.querySelectorAll('[data-action="set-filter"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            state.calendarFilter = btn.dataset.filter;
+            saveState();
+            render();
+          });
+        });
+
+        const copyConfirmedCalBtn = document.getElementById("btnCopyConfirmedCal");
+        if (copyConfirmedCalBtn && confirmed) {
+          copyConfirmedCalBtn.addEventListener("click", () => {
+            const names = getYesNames(confirmed);
+            const msg = `[타임 핏] 팀플 회의 일정이 확정되었습니다!\n📅 일시: ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}\n👥 가능(${names.length}/${state.members.length}명): ${names.join(", ") || "없음"}`;
+            copyShareText(msg);
+          });
+        }
 
         container.querySelectorAll('[data-action="select-voter"]').forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -1403,11 +1542,26 @@
         // 판단 규칙 3: 마감일 2일 전 이하인데 참여율 50% 미만이면 빨간색 경고 문구 + 미응답자 이름
         const showUrgentWarning = daysLeft <= 2 && part.rate < 50;
 
+        // 판단 규칙 6: 1표 이상 투표가 진행되었는데 1순위 후보가 과반수(50% 초과) 미만이면 재조율 안내
+        const totalVotesCast = rankedVisible.reduce((sum, s) => sum + getYesCount(s), 0);
+        const top1 = top3[0] || null;
+        const top1Votes = top1 ? getYesCount(top1) : 0;
+        const showMajorityWarning = totalVotesCast > 0 && top1Votes <= total / 2;
+
         const warningHtml = showUrgentWarning
           ? `
           <div class="alert-box alert-danger">
             ⚠️ 미투표 팀원 독려 필요 (마감 ${daysLeft <= 0 ? "임박/지남" : `D-${daysLeft}`}, 참여율 ${part.rate}%)<br/>
             <span style="font-weight:600;">미응답자: ${part.unrespondedMembers.map((m) => esc(m.name)).join(", ")}</span>
+          </div>`
+          : "";
+
+        const majorityHtml = showMajorityWarning
+          ? `
+          <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
+            ⚠️ 과반수 미달 — 재조율 필요 (1순위 득표: ${top1Votes}/${total}명)<br/>
+            <span style="font-weight:600; display:block; margin:4px 0 8px;">가장 많은 표를 받은 시간도 팀원 절반을 넘지 못했습니다.</span>
+            <button type="button" class="secondary-btn" style="padding:9px; font-size:13px;" id="btnGoRebalanceLowVotes">재조율 화면에서 차순위 보기</button>
           </div>`
           : "";
 
@@ -1464,6 +1618,7 @@
 
         container.innerHTML = `
           ${warningHtml}
+          ${majorityHtml}
           <section class="card">
             <h2 class="card-title">최다 득표 회의 시간 Top 3</h2>
             ${
@@ -1488,8 +1643,37 @@
             <div class="member-status-list">${memberStatusHtml}</div>
           </section>
 
-          <button type="button" class="secondary-btn" id="btnBackToCal">2. 캘린더로 돌아가기</button>
+          <div class="btn-row">
+            <button type="button" class="secondary-btn" id="btnCopyStatusShare">카톡 안내 복사</button>
+            <button type="button" class="secondary-btn" id="btnBackToCal">2. 캘린더로</button>
+          </div>
         `;
+
+        const lowVotesBtn = document.getElementById("btnGoRebalanceLowVotes");
+        if (lowVotesBtn) {
+          lowVotesBtn.addEventListener("click", () => {
+            state.rebalanceInfo = {
+              mode: "low-votes",
+              cancelledSlotId: null,
+              cancelledLabel: top1 ? `${formatShortDate(top1.date)} ${formatHour(top1.startHour)}~${formatHour(top1.endHour)}` : "1순위 후보",
+              absentMemberName: ""
+            };
+            state.screen = 4;
+            saveState();
+            render();
+          });
+        }
+
+        document.getElementById("btnCopyStatusShare").addEventListener("click", () => {
+          if (confirmed) {
+            const names = getYesNames(confirmed);
+            copyShareText(`[타임 핏] 팀플 회의 일정이 확정되었습니다!\n📅 일시: ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}\n👥 가능(${names.length}/${total}명): ${names.join(", ") || "없음"}`);
+          } else {
+            const topText = top1 ? `${formatShortDate(top1.date)} ${formatHour(top1.startHour)}~${formatHour(top1.endHour)} (${top1Votes}/${total}명)` : "아직 없음";
+            const unresp = part.unrespondedMembers.map((m) => m.name).join(", ") || "없음";
+            copyShareText(`[타임 핏] 팀플 회의 시간 투표 현황입니다!\n🏆 현재 1순위: ${topText}\n🙋 미투표자: ${unresp}\n확인 후 투표 부탁드려요!`);
+          }
+        });
 
         container.querySelectorAll('[data-action="confirm-slot"]').forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -1539,17 +1723,25 @@
         const candidates = getRankedSlots(true).filter((s) => s.id !== info.cancelledSlotId);
         const recommended = candidates[0] || null;
         const others = candidates.slice(1, 3);
+        const isLowVotes = info.mode === "low-votes";
 
         container.innerHTML = `
-          <div class="alert-box alert-danger">
-            ⚠️ 일정 변동 발생!<br/>
-            ${esc(info.cancelledLabel)} — <strong>'${esc(info.absentMemberName)}' 불참 선택</strong>
+          <div class="alert-box ${isLowVotes ? "" : "alert-danger"}" style="${isLowVotes ? "background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;" : ""}">
+            ${
+              isLowVotes
+                ? `⚠️ 과반수 미달로 재조율이 필요합니다!<br/>1순위 후보(${esc(info.cancelledLabel)})가 팀원 절반을 넘지 못했습니다.`
+                : `⚠️ 일정 변동 발생!<br/>${esc(info.cancelledLabel)} — <strong>'${esc(info.absentMemberName)}' 불참 선택</strong>`
+            }
           </div>
 
           <section class="card">
-            <h2 class="card-title">기존 확정 일정 해제 안내</h2>
+            <h2 class="card-title">${isLowVotes ? "과반수 미달 안내" : "기존 확정 일정 해제 안내"}</h2>
             <p class="sub-desc" style="margin-bottom:0;">
-              확정된 일정에서 불참자가 발생하여 기존 일정이 해제되었습니다. 아래 차순위 가용 시간대로 바로 변경할 수 있습니다.
+              ${
+                isLowVotes
+                  ? "아직 과반수 표가 모이지 않았습니다. 아래 차순위 후보 중 하나를 확정하거나, 캘린더에서 추가 투표를 진행해 주세요."
+                  : "확정된 일정에서 불참자가 발생하여 기존 일정이 해제되었습니다. 아래 차순위 가용 시간대로 바로 변경할 수 있습니다."
+              }
             </p>
           </section>
 
@@ -1666,6 +1858,19 @@
       }
 
       // 상단 공통 버튼 이벤트
+      document.getElementById("btnToggleTest").addEventListener("click", () => {
+        const drawer = document.getElementById("testDrawer");
+        const isHidden = drawer.classList.toggle("hidden");
+        document.getElementById("btnToggleTest").textContent = isHidden ? "테스트 ▼" : "테스트 ▲";
+      });
+
+      document.getElementById("btnNextDay").addEventListener("click", () => {
+        state.appToday = addDaysStr(state.appToday, 1);
+        saveState();
+        render();
+        showToast(`앱 날짜가 ${formatShortDate(state.appToday)}로 이동했습니다.`);
+      });
+
       document.getElementById("btnCloseAbsentModal").addEventListener("click", () => {
         document.getElementById("absentModal").classList.add("hidden");
       });
