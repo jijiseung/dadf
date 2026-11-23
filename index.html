@@ -797,37 +797,37 @@
             {
               id: "m1",
               name: "이준호",
-              unavailable: [
-                { day: "월", start: 13, end: 15 },
-                { day: "수", start: 10, end: 12 },
-                { day: "금", start: 9, end: 11 }
+              available: [
+                { day: "화", start: 15, end: 18 },
+                { day: "목", start: 18, end: 21 },
+                { day: "토", start: 13, end: 16 }
               ]
             },
             {
               id: "m2",
               name: "김민지",
-              unavailable: [
-                { day: "화", start: 9, end: 12 },
-                { day: "목", start: 14, end: 16 },
-                { day: "월", start: 10, end: 12 }
+              available: [
+                { day: "화", start: 14, end: 17 },
+                { day: "목", start: 18, end: 20 },
+                { day: "일", start: 14, end: 17 }
               ]
             },
             {
               id: "m3",
               name: "박서준",
-              unavailable: [
-                { day: "월", start: 15, end: 18 },
-                { day: "금", start: 13, end: 17 },
-                { day: "수", start: 14, end: 16 }
+              available: [
+                { day: "화", start: 15, end: 19 },
+                { day: "목", start: 17, end: 20 },
+                { day: "금", start: 18, end: 21 }
               ]
             },
             {
               id: "m4",
               name: "최유진",
-              unavailable: [
-                { day: "화", start: 10, end: 13 },
-                { day: "수", start: 18, end: 21 },
-                { day: "목", start: 9, end: 12 }
+              available: [
+                { day: "화", start: 15, end: 17 },
+                { day: "목", start: 18, end: 21 },
+                { day: "토", start: 14, end: 18 }
               ]
             }
           ],
@@ -841,7 +841,13 @@
           const raw = localStorage.getItem(STORAGE_KEY);
           if (!raw) return createInitialState();
           const parsed = JSON.parse(raw);
-          if (!parsed || !Array.isArray(parsed.members)) return createInitialState();
+          if (
+            !parsed ||
+            !Array.isArray(parsed.members) ||
+            parsed.members.some((m) => !Array.isArray(m.available))
+          ) {
+            return createInitialState();
+          }
           parsed.appToday = getRealTodayStr();
           if (!parsed.calendarFilter) parsed.calendarFilter = "all";
           return parsed;
@@ -869,14 +875,14 @@
             const dateStr = addDaysStr(state.startDate, offset);
             const dayKo = getDayKo(dateStr);
 
-            // 09:00 ~ 21:00 각 1시간 슬롯별 가능 인원 계산
+            // 09:00 ~ 21:00 각 1시간 슬롯별 가능 인원 계산 (팀원별 가능한 시간 기준)
             const hourOk = HOURS.map((h) => {
               let avail = 0;
               state.members.forEach((m) => {
-                const blocked = m.unavailable.some(
-                  (u) => u.day === dayKo && h >= u.start && h < u.end
+                const canAttend = m.available.some(
+                  (a) => a.day === dayKo && h >= a.start && h < a.end
                 );
-                if (!blocked) avail++;
+                if (canAttend) avail++;
               });
               return { hour: h, ok: avail >= minAvailableRequired, availCount: avail };
             });
@@ -1087,12 +1093,12 @@
 
         const membersHtml = state.members
           .map((m, idx) => {
-            const chips = m.unavailable
+            const chips = m.available
               .map(
-                (u, uIdx) => `
+                (a, aIdx) => `
                 <span class="unavail-chip">
-                  ${u.day} ${formatHour(u.start)}~${formatHour(u.end)}
-                  <button type="button" class="chip-del" data-action="del-unavail" data-midx="${idx}" data-uidx="${uIdx}" aria-label="삭제">×</button>
+                  ${a.day} ${formatHour(a.start)}~${formatHour(a.end)}
+                  <button type="button" class="chip-del" data-action="del-avail" data-midx="${idx}" data-aidx="${aIdx}" aria-label="삭제">×</button>
                 </span>`
               )
               .join("");
@@ -1108,14 +1114,14 @@
                   }
                 </div>
                 <div class="unavail-list">
-                  ${chips || '<span style="font-size:12px; color:#9ca3af;">등록된 불가능 시간 없음</span>'}
+                  ${chips || '<span style="font-size:12px; color:#9ca3af;">등록된 가능한 시간 없음</span>'}
                 </div>
                 <div class="add-unavail-row">
                   <select id="day_${idx}">${dayOpts}</select>
                   <select id="start_${idx}" data-action="change-start" data-midx="${idx}">${hourOptsStart}</select>
                   <span class="tilde-sep">~</span>
                   <select id="end_${idx}">${hourOptsEnd}</select>
-                  <button type="button" class="small-btn" data-action="add-unavail" data-midx="${idx}">+추가</button>
+                  <button type="button" class="small-btn" data-action="add-avail" data-midx="${idx}">+추가</button>
                 </div>
               </div>
             `;
@@ -1150,10 +1156,10 @@
 
           <section class="card">
             <h2 class="card-title">
-              <span>2. 팀원 &amp; 불가능한 시간</span>
+              <span>2. 팀원 &amp; 가능한 시간</span>
               <button type="button" class="small-btn" id="btnAddMember">+ 팀원 추가 (${state.members.length}명)</button>
             </h2>
-            <p class="sub-desc">수업·알바 등 매주 안 되는 요일과 시간대를 넣어 주세요.</p>
+            <p class="sub-desc">수업·알바 외에 회의에 참여할 수 있는 요일과 시간대를 넣어 주세요.</p>
             ${membersHtml}
           </section>
 
@@ -1162,10 +1168,10 @@
 
         // 이벤트 바인딩
         document.getElementById("btnClearToBlank").addEventListener("click", () => {
-          if (!confirm("예시 팀원과 불가능 시간을 비우고 새 팀플 양식으로 시작할까요?")) return;
+          if (!confirm("예시 팀원과 가능한 시간을 비우고 새 팀플 양식으로 시작할까요?")) return;
           state.members = [
-            { id: `m_${Date.now()}_1`, name: "", unavailable: [] },
-            { id: `m_${Date.now()}_2`, name: "", unavailable: [] }
+            { id: `m_${Date.now()}_1`, name: "", available: [] },
+            { id: `m_${Date.now()}_2`, name: "", available: [] }
           ];
           state.selectedVoterIndex = 0;
           invalidateDraftSlots();
@@ -1226,18 +1232,18 @@
           });
         });
 
-        container.querySelectorAll('[data-action="del-unavail"]').forEach((btn) => {
+        container.querySelectorAll('[data-action="del-avail"]').forEach((btn) => {
           btn.addEventListener("click", () => {
             const midx = Number(btn.dataset.midx);
-            const uidx = Number(btn.dataset.uidx);
-            state.members[midx].unavailable.splice(uidx, 1);
+            const aidx = Number(btn.dataset.aidx);
+            state.members[midx].available.splice(aidx, 1);
             invalidateDraftSlots();
             saveState();
             render();
           });
         });
 
-        container.querySelectorAll('[data-action="add-unavail"]').forEach((btn) => {
+        container.querySelectorAll('[data-action="add-avail"]').forEach((btn) => {
           btn.addEventListener("click", () => {
             const midx = Number(btn.dataset.midx);
             const day = document.getElementById(`day_${midx}`).value;
@@ -1247,8 +1253,8 @@
               alert("종료 시각은 시작 시각보다 뒤여야 합니다.");
               return;
             }
-            // 같은 요일의 겹치거나 이어지는 불가능 시간 자동 병합
-            const list = state.members[midx].unavailable;
+            // 같은 요일의 겹치거나 이어지는 가능한 시간 자동 병합
+            const list = state.members[midx].available;
             let newStart = start;
             let newEnd = end;
             const remaining = [];
@@ -1261,7 +1267,7 @@
               }
             });
             remaining.push({ day, start: newStart, end: newEnd });
-            state.members[midx].unavailable = remaining;
+            state.members[midx].available = remaining;
             invalidateDraftSlots();
             saveState();
             render();
@@ -1273,7 +1279,7 @@
           state.members.push({
             id: `m_${Date.now()}_${nextNum}`,
             name: `팀원${nextNum}`,
-            unavailable: []
+            available: []
           });
           invalidateDraftSlots();
           saveState();
@@ -1313,7 +1319,7 @@
           state.rebalanceInfo = null;
           state.selectedVoterIndex = 0;
           if (state.slots.length === 0) {
-            alert("조건에 맞는 공통 가용 시간대가 없습니다. 기간이나 불가능 시간을 조정해 주세요.");
+            alert("조건에 맞는 공통 가용 시간대가 없습니다. 기간이나 가능한 시간을 조정해 주세요.");
             return;
           }
           state.screen = 2;
