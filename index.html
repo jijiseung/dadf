@@ -927,10 +927,10 @@
           return result;
         }
 
-        // 1차: 전원(100%)이 동시에 비는 시간대 탐색
+        // 1차: 전원(100%)이 동시에 맞는 시간대 탐색
         let generated = collectBlocks(totalMembers, false);
 
-        // 판단 규칙 4: 전원이 동시에 비는 가용 시간이 0개이면 (총 팀원 수 - 1명) 차선책 탐색
+        // 판단 규칙 4: 전원이 동시에 맞는 가용 시간이 0개이면 (총 팀원 수 - 1명) 차선책 탐색
         if (generated.length === 0 && totalMembers >= 2) {
           for (let target = totalMembers - 1; target >= 1; target--) {
             const fallbackBlocks = collectBlocks(target, true);
@@ -1315,6 +1315,11 @@
           state.members.forEach((m) => {
             m.name = m.name.trim();
           });
+          const noAvailMember = state.members.find((m) => m.available.length === 0);
+          if (noAvailMember) {
+            alert(`'${noAvailMember.name}'님의 가능한 시간이 아직 없습니다.\n요일·시간을 고른 뒤 [+추가] 버튼을 꼭 눌러 주세요.`);
+            return;
+          }
           state.slots = generateDraftSlots();
           state.rebalanceInfo = null;
           state.selectedVoterIndex = 0;
@@ -1355,7 +1360,8 @@
         const fallbackBanner = hasFallbackOnly
           ? `
           <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
-            전원(100%)이 동시에 비는 시간이 0개여서, 가장 많은 인원이 가능한 <strong>차선책 후보</strong>를 표시합니다.
+            전원(100%)이 동시에 맞는 시간이 0개여서, 가장 많은 인원이 가능한 <strong>차선책 후보</strong>를 표시합니다.<br/>
+            <span style="font-size:12px; font-weight:600;">(기준: ${formatShortDate(state.startDate)}~${formatShortDate(state.endDate)}, 최소 ${state.minDuration}분 이상)</span>
           </div>`
           : "";
 
