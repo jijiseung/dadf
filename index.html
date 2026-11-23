@@ -1489,7 +1489,7 @@
         if (copyConfirmedCalBtn && confirmed) {
           copyConfirmedCalBtn.addEventListener("click", () => {
             const names = getYesNames(confirmed);
-            const msg = `[타임 핏] 팀플 회의 일정이 확정되었습니다!\n📅 일시: ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}\n👥 가능(${names.length}/${state.members.length}명): ${names.join(", ") || "없음"}`;
+            const msg = `팀플 회의 일정이 확정되었습니다!\n📅 일시: ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}\n👥 가능(${names.length}/${state.members.length}명): ${names.join(", ") || "없음"}`;
             copyShareText(msg);
           });
         }
@@ -1667,11 +1667,11 @@
         document.getElementById("btnCopyStatusShare").addEventListener("click", () => {
           if (confirmed) {
             const names = getYesNames(confirmed);
-            copyShareText(`[타임 핏] 팀플 회의 일정이 확정되었습니다!\n📅 일시: ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}\n👥 가능(${names.length}/${total}명): ${names.join(", ") || "없음"}`);
+            copyShareText(`팀플 회의 일정이 확정되었습니다!\n📅 일시: ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}\n👥 가능(${names.length}/${total}명): ${names.join(", ") || "없음"}`);
           } else {
             const topText = top1 ? `${formatShortDate(top1.date)} ${formatHour(top1.startHour)}~${formatHour(top1.endHour)} (${top1Votes}/${total}명)` : "아직 없음";
             const unresp = part.unrespondedMembers.map((m) => m.name).join(", ") || "없음";
-            copyShareText(`[타임 핏] 팀플 회의 시간 투표 현황입니다!\n🏆 현재 1순위: ${topText}\n🙋 미투표자: ${unresp}\n확인 후 투표 부탁드려요!`);
+            copyShareText(`팀플 회의 시간 투표 현황입니다!\n🏆 현재 1순위: ${topText}\n🙋 미투표자: ${unresp}\n확인 후 투표 부탁드려요!`);
           }
         });
 
