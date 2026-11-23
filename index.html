@@ -703,18 +703,14 @@
 </head>
 <body>
   <div class="app-shell">
-    <!-- 상단 헤더 & 초기화·접이식 테스트 도구 -->
+    <!-- 상단 헤더 & 초기화 버튼 -->
     <header class="top-header">
       <div class="header-row">
         <div class="brand" style="font-size:17px; white-space:nowrap;">⏰ 타임 핏</div>
-        <div style="display:flex; align-items:center; gap:4px; flex-wrap:nowrap;">
-          <div class="today-pill" id="todayBadge" style="font-size:11px; padding:4px 7px;">오늘 -</div>
-          <button type="button" class="test-btn" style="flex:none; padding:5px 6px; font-size:11px;" id="btnToggleTest">테스트 ▼</button>
-          <button type="button" class="test-btn reset" style="flex:none; padding:5px 6px; font-size:11px;" id="btnResetAll">처음부터 다시</button>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap;">
+          <div class="today-pill" id="todayBadge">오늘: -</div>
+          <button type="button" class="test-btn reset" style="flex:none; padding:5px 10px;" id="btnResetAll">처음부터 다시</button>
         </div>
-      </div>
-      <div class="test-bar hidden" id="testDrawer">
-        <button type="button" class="test-btn" id="btnNextDay">다음 날로 이동 (+1일)</button>
       </div>
     </header>
 
@@ -1910,19 +1906,6 @@
       }
 
       // 상단 공통 버튼 이벤트
-      document.getElementById("btnToggleTest").addEventListener("click", () => {
-        const drawer = document.getElementById("testDrawer");
-        const isHidden = drawer.classList.toggle("hidden");
-        document.getElementById("btnToggleTest").textContent = isHidden ? "테스트 ▼" : "테스트 ▲";
-      });
-
-      document.getElementById("btnNextDay").addEventListener("click", () => {
-        state.appToday = addDaysStr(state.appToday, 1);
-        saveState();
-        render();
-        showToast(`앱 날짜가 ${formatShortDate(state.appToday)}로 이동했습니다.`);
-      });
-
       document.getElementById("btnCloseAbsentModal").addEventListener("click", () => {
         document.getElementById("absentModal").classList.add("hidden");
       });
