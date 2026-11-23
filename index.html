@@ -862,86 +862,113 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
 
-      // 2번 칸: 초안 생성 알고리즘 (판단 규칙 4 포함)
+      // 2번 칸: 초안 생성 알고리즘 (가능한 시간 기준 겹치는 시간대 탐색 + 판단 규칙 4)
       function generateDraftSlots() {
         const minMinutes = Math.max(1, Number(state.minDuration) || 60);
         const totalMembers = state.members.length;
         const daysCount = diffDays(state.startDate, state.endDate);
         if (daysCount < 0) return [];
 
-        function collectBlocks(minAvailableRequired, isFallback) {
-          const result = [];
-          for (let offset = 0; offset <= daysCount; offset++) {
-            const dateStr = addDaysStr(state.startDate, offset);
-            const dayKo = getDayKo(dateStr);
+        const result = [];
 
-            // 09:00 ~ 21:00 각 1시간 슬롯별 가능 인원 계산 (팀원별 가능한 시간 기준)
-            const hourOk = HOURS.map((h) => {
-              let avail = 0;
-              state.members.forEach((m) => {
-                const canAttend = m.available.some(
-                  (a) => a.day === dayKo && h >= a.start && h < a.end
-                );
-                if (canAttend) avail++;
-              });
-              return { hour: h, ok: avail >= minAvailableRequired, availCount: avail };
-            });
+        for (let offset = 0; offset <= daysCount; offset++) {
+          const dateStr = addDaysStr(state.startDate, offset);
+          const dayKo = getDayKo(dateStr);
 
-            // 연속으로 조건을 만족하는 블록 묶기
-            let runStart = null;
-            let minAvailInRun = totalMembers;
-            for (let i = 0; i <= hourOk.length; i++) {
-              const cur = hourOk[i];
-              if (cur && cur.ok) {
-                if (runStart === null) {
-                  runStart = cur.hour;
-                  minAvailInRun = cur.availCount;
-                } else {
-                  minAvailInRun = Math.min(minAvailInRun, cur.availCount);
-                }
-              } else {
-                if (runStart !== null) {
+          // 09:00 ~ 21:00 각 1시간 슬롯별 가능한 팀원 목록 계산
+          const hourInfo = HOURS.map((h) => {
+            const matched = state.members.filter((m) =>
+              (m.available || []).some(
+                (a) => a.day === dayKo && h >= Number(a.start) && h < Number(a.end)
+              )
+            );
+            return { hour: h, count: matched.length, names: matched.map((m) => m.name) };
+          });
+
+          // 1차: 전원(100%)이 동시에 맞는 연속 블록 추출
+          const usedHours = new Set();
+          let runStart = null;
+          for (let i = 0; i <= hourInfo.length; i++) {
+            const cur = hourInfo[i];
+            if (cur && cur.count === totalMembers) {
+              if (runStart === null) runStart = cur.hour;
+            } else if (runStart !== null) {
+              const endHour = cur ? cur.hour : 22;
+              if ((endHour - runStart) * 60 >= minMinutes) {
+                for (let hh = runStart; hh < endHour; hh++) usedHours.add(hh);
+                const votes = {};
+                state.members.forEach((m) => {
+                  votes[m.id] = "미응답";
+                });
+                result.push({
+                  id: `${dateStr}_${runStart}_${endHour}_full`,
+                  date: dateStr,
+                  dayKo: dayKo,
+                  startHour: runStart,
+                  endHour: endHour,
+                  votes: votes,
+                  status: "후보",
+                  isFallback: false,
+                  possibleMembersCount: totalMembers,
+                  matchedNames: state.members.map((m) => m.name)
+                });
+              }
+              runStart = null;
+            }
+          }
+
+          // 2차: 전원 블록을 제외한 나머지 시간 중 2명 이상 겹치는 연속 블록도 후보로 추출 (래터스밋 겹침 시각화)
+          if (totalMembers >= 2) {
+            for (let target = totalMembers - 1; target >= 2; target--) {
+              let pStart = null;
+              for (let i = 0; i <= hourInfo.length; i++) {
+                const cur = hourInfo[i];
+                if (cur && !usedHours.has(cur.hour) && cur.count >= target) {
+                  if (pStart === null) pStart = cur.hour;
+                } else if (pStart !== null) {
                   const endHour = cur ? cur.hour : 22;
-                  if ((endHour - runStart) * 60 >= minMinutes) {
+                  if ((endHour - pStart) * 60 >= minMinutes) {
+                    const slice = hourInfo.filter((x) => x.hour >= pStart && x.hour < endHour);
+                    const minCnt = Math.min(...slice.map((x) => x.count));
+                    // 해당 블록 내 모든 시간에 공통으로 포함된 팀원 이름
+                    const commonNames = state.members
+                      .filter((m) =>
+                        slice.every((x) => x.names.includes(m.name))
+                      )
+                      .map((m) => m.name);
+
+                    for (let hh = pStart; hh < endHour; hh++) usedHours.add(hh);
                     const votes = {};
                     state.members.forEach((m) => {
                       votes[m.id] = "미응답";
                     });
                     result.push({
-                      id: `${dateStr}_${runStart}_${endHour}`,
+                      id: `${dateStr}_${pStart}_${endHour}_part`,
                       date: dateStr,
                       dayKo: dayKo,
-                      startHour: runStart,
+                      startHour: pStart,
                       endHour: endHour,
                       votes: votes,
                       status: "후보",
-                      isFallback: isFallback,
-                      possibleMembersCount: minAvailInRun
+                      isFallback: true,
+                      possibleMembersCount: commonNames.length || minCnt,
+                      matchedNames: commonNames.length > 0 ? commonNames : slice[0].names
                     });
                   }
-                  runStart = null;
+                  pStart = null;
                 }
               }
             }
           }
-          return result;
         }
 
-        // 1차: 전원(100%)이 동시에 맞는 시간대 탐색
-        let generated = collectBlocks(totalMembers, false);
+        // 날짜 및 시작 시각 순 정렬
+        result.sort((a, b) => {
+          if (a.date !== b.date) return a.date.localeCompare(b.date);
+          return a.startHour - b.startHour;
+        });
 
-        // 판단 규칙 4: 전원이 동시에 맞는 가용 시간이 0개이면 (총 팀원 수 - 1명) 차선책 탐색
-        if (generated.length === 0 && totalMembers >= 2) {
-          for (let target = totalMembers - 1; target >= 1; target--) {
-            const fallbackBlocks = collectBlocks(target, true);
-            if (fallbackBlocks.length > 0) {
-              generated = fallbackBlocks;
-              break;
-            }
-          }
-        }
-
-        return generated;
+        return result;
       }
 
       // 슬롯의 '가능' 투표 수 계산
@@ -1324,7 +1351,20 @@
           state.rebalanceInfo = null;
           state.selectedVoterIndex = 0;
           if (state.slots.length === 0) {
-            alert("조건에 맞는 공통 가용 시간대가 없습니다. 기간이나 가능한 시간을 조정해 주세요.");
+            const memberSummary = state.members
+              .map(
+                (m) =>
+                  `- ${m.name}: ${m.available.map((a) => `${a.day} ${formatHour(a.start)}~${formatHour(a.end)}`).join(", ") || "없음"}`
+              )
+              .join("\n");
+            alert(
+              `조건에 맞는 공통 가용 시간대(2명 이상 겹침)가 없습니다.\n\n` +
+                `[현재 설정]\n` +
+                `• 기간: ${state.startDate} ~ ${state.endDate}\n` +
+                `• 최소 회의 시간: ${state.minDuration}분\n` +
+                `${memberSummary}\n\n` +
+                `기간 안에 겹치는 요일이 있는지, 최소 회의 시간(${state.minDuration}분) 이상 겹치는 시간이 있는지 확인해 주세요.`
+            );
             return;
           }
           state.screen = 2;
@@ -1412,9 +1452,10 @@
                 } else if (isFull) {
                   badges += `<span class="badge badge-orange">전원 가능(1순위)</span> `;
                 } else if (s.isFallback) {
-                  badges += `<span class="badge badge-warn">차선책 후보</span> `;
+                  const matchCnt = s.possibleMembersCount || 0;
+                  badges += `<span class="badge badge-warn">${matchCnt}/${total}명 시간 겹침</span> `;
                 } else {
-                  badges += `<span class="badge badge-light">가용 후보</span> `;
+                  badges += `<span class="badge badge-light">전원 시간 맞음</span> `;
                 }
 
                 const myStateLabel =
@@ -1438,7 +1479,11 @@
                       <span>${myStateLabel}</span>
                     </div>
                     <div class="voter-names">
-                      가능 팀원: ${yesNames.length > 0 ? esc(yesNames.join(", ")) : "아직 없음"}
+                      ${
+                        Array.isArray(s.matchedNames) && s.matchedNames.length > 0
+                          ? `겹친 팀원: ${esc(s.matchedNames.join(", "))}<br/>`
+                          : ""
+                      }투표 가능: ${yesNames.length > 0 ? esc(yesNames.join(", ")) : "아직 없음"}
                     </div>
                   </button>
                 `;
