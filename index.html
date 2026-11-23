@@ -703,14 +703,11 @@
 </head>
 <body>
   <div class="app-shell">
-    <!-- 상단 헤더 & 초기화 버튼 -->
+    <!-- 상단 헤더 -->
     <header class="top-header">
       <div class="header-row">
         <div class="brand" style="font-size:17px; white-space:nowrap;">⏰ 타임 핏</div>
-        <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap;">
-          <div class="today-pill" id="todayBadge">오늘: -</div>
-          <button type="button" class="test-btn reset" style="flex:none; padding:5px 10px;" id="btnResetAll">처음부터 다시</button>
-        </div>
+        <div class="today-pill" id="todayBadge">오늘: -</div>
       </div>
     </header>
 
@@ -1908,14 +1905,6 @@
       // 상단 공통 버튼 이벤트
       document.getElementById("btnCloseAbsentModal").addEventListener("click", () => {
         document.getElementById("absentModal").classList.add("hidden");
-      });
-
-      document.getElementById("btnResetAll").addEventListener("click", () => {
-        if (!confirm("저장된 모든 데이터를 지우고 첫 화면으로 돌아갈까요?")) return;
-        localStorage.removeItem(STORAGE_KEY);
-        state = createInitialState();
-        saveState();
-        render();
       });
 
       document.querySelectorAll(".step-tab").forEach((btn) => {
