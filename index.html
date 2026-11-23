@@ -858,7 +858,7 @@
 
       // 2번 칸: 초안 생성 알고리즘 (판단 규칙 4 포함)
       function generateDraftSlots() {
-        const minMinutes = Math.max(10, Number(state.minDuration) || 60);
+        const minMinutes = Math.max(1, Number(state.minDuration) || 60);
         const totalMembers = state.members.length;
         const daysCount = diffDays(state.startDate, state.endDate);
         if (daysCount < 0) return [];
@@ -1140,9 +1140,9 @@
               </div>
             </div>
             <div class="field-group" style="margin-bottom:0;">
-              <label class="field-label" for="inputMinDuration">최소 회의 시간 (분 단위 직접 입력)</label>
+              <label class="field-label" for="inputMinDuration">최소 회의 시간 (1분 단위 직접 입력)</label>
               <div class="duration-input-row">
-                <input type="number" id="inputMinDuration" min="10" max="780" step="5" value="${state.minDuration}" placeholder="예: 60" />
+                <input type="number" id="inputMinDuration" min="1" max="780" step="1" value="${state.minDuration}" placeholder="예: 60" />
                 <span class="duration-unit">분</span>
               </div>
             </div>
@@ -1288,8 +1288,8 @@
 
         document.getElementById("btnFindSlots").addEventListener("click", () => {
           const durationVal = Number(document.getElementById("inputMinDuration").value);
-          if (!durationVal || durationVal < 10) {
-            alert("최소 회의 시간은 10분 이상의 숫자로 입력해 주세요.");
+          if (!durationVal || durationVal < 1) {
+            alert("최소 회의 시간은 1분 이상의 숫자로 입력해 주세요.");
             return;
           }
           state.minDuration = durationVal;
