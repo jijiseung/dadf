@@ -1045,6 +1045,56 @@
         return state.slots.find((s) => s.status === "확정") || null;
       }
 
+      // 현재 활성 후보 기준 확정 투표 집계
+      function getVoteSummary() {
+        const active = state.slots.filter((s) => s.status !== "취소");
+        const ranked = getRankedSlots(true);
+        const topSlot = ranked[0] || null;
+        const topVotes = topSlot ? getYesCount(topSlot) : 0;
+        const tiedTopSlots =
+          topVotes > 0 ? ranked.filter((s) => getYesCount(s) === topVotes) : [];
+        const votedMembers = state.members.filter((m) =>
+          active.some((s) => s.votes[m.id] === "가능")
+        );
+        const unvotedMembers = state.members.filter(
+          (m) => !active.some((s) => s.votes[m.id] === "가능")
+        );
+        return {
+          total: state.members.length,
+          active,
+          ranked,
+          topSlot,
+          topVotes,
+          tiedTopSlots,
+          votedMembers,
+          unvotedMembers,
+          allVoted: state.members.length > 0 && unvotedMembers.length === 0
+        };
+      }
+
+      // 동점 후보끼리 결선 투표 시작
+      function startRunoffVote(tiedSlots) {
+        if (!tiedSlots || tiedSlots.length < 2) return;
+        const tiedIds = new Set(tiedSlots.map((s) => s.id));
+        state.slots.forEach((s) => {
+          if (tiedIds.has(s.id)) {
+            s.status = "후보";
+            state.members.forEach((m) => {
+              s.votes[m.id] = "미응답";
+            });
+          } else {
+            s.status = "취소";
+          }
+        });
+        state.rebalanceInfo = null;
+        state.selectedVoterIndex = 0;
+        state.calendarFilter = "all";
+        state.screen = 2;
+        saveState();
+        render();
+        showToast("동점 후보끼리 결선 투표를 시작합니다!");
+      }
+
       // 상단 공통 UI 업데이트
       function updateChrome() {
         const todayEl = document.getElementById("todayBadge");
@@ -1399,13 +1449,14 @@
         const confirmed = getConfirmedSlot();
         const activeSlots = state.slots.filter((s) => s.status !== "취소");
         const hasFallbackOnly = activeSlots.length > 0 && activeSlots.every((s) => s.isFallback);
+        const voteSummary = getVoteSummary();
 
         const confirmedBanner = confirmed
           ? `
           <div class="alert-box alert-confirmed">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;">
               <span class="badge badge-orange">확정 일정</span>
-              <span style="font-size:12px; color:#d95700;">${getYesCount(confirmed)}/${state.members.length}명 가능</span>
+              <span style="font-size:12px; color:#d95700;">${getYesCount(confirmed)}/${state.members.length}명 득표</span>
             </div>
             <div style="font-size:16px; font-weight:800; margin-bottom:8px;">
               ${formatShortDate(confirmed.date)} ${formatHour(confirmed.startHour)}~${formatHour(confirmed.endHour)}
@@ -1416,6 +1467,31 @@
             </div>
           </div>`
           : "";
+
+        const voteGuideBanner =
+          !confirmed && activeSlots.length >= 2
+            ? voteSummary.allVoted && voteSummary.tiedTopSlots.length > 1
+              ? `
+              <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
+                ⚖️ 전원 투표 완료! 최다 득표(${voteSummary.topVotes}표)가 ${voteSummary.tiedTopSlots.length}개 동점입니다.<br/>
+                <span style="font-size:12px; font-weight:600; display:block; margin:4px 0 8px;">동점 후보끼리 다시 투표하거나 투표 현황에서 확정할 수 있어요.</span>
+                <div class="btn-row">
+                  <button type="button" class="primary-btn" style="padding:9px; font-size:13px;" id="btnRunoffFromCal">동점 후보 결선 투표</button>
+                  <button type="button" class="secondary-btn" style="padding:9px; font-size:13px;" id="btnGoStatusFromTie">현황에서 고르기</button>
+                </div>
+              </div>`
+              : `
+              <div class="alert-box" style="background:var(--primary-light); color:var(--primary-dark); border:1px solid var(--primary-border);">
+                🗳️ 겹치는 시간이 ${activeSlots.length}개입니다. 원하는 시간에 투표(중복 가능)한 뒤 일정을 확정하세요!
+                <div style="font-size:12px; font-weight:600; margin-top:4px; color:#4b5563;">
+                  투표 참여: <strong>${voteSummary.votedMembers.length}/${voteSummary.total}명</strong>${
+                    voteSummary.unvotedMembers.length > 0
+                      ? ` · 미투표: ${voteSummary.unvotedMembers.map((m) => esc(m.name)).join(", ")}`
+                      : " · 전원 참여 완료!"
+                  }
+                </div>
+              </div>`
+            : "";
 
         const fallbackBanner = hasFallbackOnly
           ? `
@@ -1530,9 +1606,10 @@
 
         container.innerHTML = `
           ${confirmedBanner}
+          ${voteGuideBanner}
           ${fallbackBanner}
           <section class="card">
-            <h2 class="card-title">투표할 팀원 선택</h2>
+            <h2 class="card-title">투표할 팀원 선택 (중복 투표 가능)</h2>
             <div class="voter-grid">${voterButtons}</div>
           </section>
 
@@ -1549,7 +1626,15 @@
             ${calendarHtml || '<p class="sub-desc">선택한 필터 조건에 맞는 시간 후보가 없습니다.</p>'}
           </section>
 
-          <button type="button" class="primary-btn" id="btnGoStatus">투표 현황 보기</button>
+          ${
+            !confirmed && activeSlots.length >= 2
+              ? `
+              <div class="btn-row">
+                <button type="button" class="primary-btn" style="font-size:15px;" id="btnConfirmByVote">투표로 일정 확정</button>
+                <button type="button" class="secondary-btn" style="font-size:15px;" id="btnGoStatus">투표 현황</button>
+              </div>`
+              : `<button type="button" class="primary-btn" id="btnGoStatus">투표 현황 보기</button>`
+          }
         `;
 
         container.querySelectorAll('[data-action="set-filter"]').forEach((btn) => {
@@ -1569,6 +1654,55 @@
           });
         }
 
+        const runoffCalBtn = document.getElementById("btnRunoffFromCal");
+        if (runoffCalBtn) {
+          runoffCalBtn.addEventListener("click", () => startRunoffVote(voteSummary.tiedTopSlots));
+        }
+
+        const goStatusTieBtn = document.getElementById("btnGoStatusFromTie");
+        if (goStatusTieBtn) {
+          goStatusTieBtn.addEventListener("click", () => {
+            state.screen = 3;
+            saveState();
+            render();
+          });
+        }
+
+        const confirmByVoteBtn = document.getElementById("btnConfirmByVote");
+        if (confirmByVoteBtn) {
+          confirmByVoteBtn.addEventListener("click", () => {
+            const summary = getVoteSummary();
+            if (summary.topVotes === 0) {
+              alert("아직 투표한 팀원이 없습니다. 팀원을 선택해 원하는 시간에 먼저 투표해 주세요.");
+              return;
+            }
+            if (summary.tiedTopSlots.length > 1) {
+              alert(
+                `현재 최다 득표(${summary.topVotes}표)가 ${summary.tiedTopSlots.length}개 동점입니다.\n추가 투표하거나 결선 투표로 결정해 주세요.`
+              );
+              return;
+            }
+            const label = `${formatShortDate(summary.topSlot.date)} ${formatHour(summary.topSlot.startHour)}~${formatHour(summary.topSlot.endHour)}`;
+            if (!summary.allVoted) {
+              const unvotedNames = summary.unvotedMembers.map((m) => m.name).join(", ");
+              if (
+                !confirm(
+                  `아직 미투표 팀원(${unvotedNames})이 있습니다.\n현재 최다 득표(${label}, ${summary.topVotes}/${summary.total}표)로 일정을 확정할까요?`
+                )
+              ) {
+                return;
+              }
+            }
+            state.slots.forEach((s) => {
+              if (s.status === "확정") s.status = "후보";
+            });
+            summary.topSlot.status = "확정";
+            saveState();
+            render();
+            showToast(`투표 결과(${summary.topVotes}/${summary.total}표)로 일정이 확정되었습니다!`);
+          });
+        }
+
         container.querySelectorAll('[data-action="select-voter"]').forEach((btn) => {
           btn.addEventListener("click", () => {
             state.selectedVoterIndex = Number(btn.dataset.idx);
@@ -1582,9 +1716,19 @@
             const slotId = btn.dataset.slotId;
             const slot = state.slots.find((s) => s.id === slotId);
             if (!slot) return;
+
+            const currentConfirmed = getConfirmedSlot();
+            if (currentConfirmed) {
+              if (!confirm("이미 확정된 일정이 있습니다. 확정을 풀고 투표를 다시 수정할까요?")) {
+                return;
+              }
+              currentConfirmed.status = "후보";
+            }
+
             const voterId = currentVoter.id;
-            const cur = slot.votes[voterId];
-            slot.votes[voterId] = cur === "가능" ? "미응답" : "가능";
+            const wasVotedHere = slot.votes[voterId] === "가능";
+            slot.votes[voterId] = wasVotedHere ? "미응답" : "가능";
+
             saveState();
             render();
           });
@@ -1606,18 +1750,16 @@
       function renderScreen3(container) {
         const total = state.members.length;
         const activeCount = state.slots.filter((s) => s.status !== "취소").length;
-        const activeAll = getRankedSlots(true);
-        const top1All = activeAll[0] || null;
-        const top1AllVotes = top1All ? getYesCount(top1All) : 0;
-        const tiedTopCount =
-          top1AllVotes > 0
-            ? activeAll.filter((s) => getYesCount(s) === top1AllVotes).length
-            : 0;
+        const voteSummary = getVoteSummary();
+        const top1All = voteSummary.topSlot;
+        const top1AllVotes = voteSummary.topVotes;
+        const tiedTopCount = voteSummary.tiedTopSlots.length;
 
         let autoConfirmedByTopVote = false;
         if (
           !getConfirmedSlot() &&
           !state.rebalanceInfo &&
+          voteSummary.allVoted &&
           top1All &&
           top1AllVotes > 0 &&
           tiedTopCount === 1
@@ -1642,12 +1784,22 @@
         const totalVotesCast = rankedVisible.reduce((sum, s) => sum + getYesCount(s), 0);
         const top1 = top3[0] || null;
         const top1Votes = top1 ? getYesCount(top1) : 0;
-        const showMajorityWarning = !confirmed && totalVotesCast > 0 && top1Votes <= total / 2;
+        const showTieBanner = !confirmed && tiedTopCount > 1;
+        const showMajorityWarning = !confirmed && !showTieBanner && totalVotesCast > 0 && top1Votes <= total / 2;
 
         const autoConfirmBannerHtml = autoConfirmedByTopVote
           ? `
           <div class="alert-box alert-confirmed">
-            🏆 겹치는 최다 득표 시간이 없어 <strong>${formatShortDate(top1All.date)} ${formatHour(top1All.startHour)}~${formatHour(top1All.endHour)}</strong> 일정이 자동 확정되었습니다!
+            🏆 전원 투표 결과 단독 최다 득표로 <strong>${formatShortDate(top1All.date)} ${formatHour(top1All.startHour)}~${formatHour(top1All.endHour)}</strong> 일정이 자동 확정되었습니다!
+          </div>`
+          : "";
+
+        const tieBannerHtml = showTieBanner
+          ? `
+          <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
+            ⚖️ 최다 득표(${top1AllVotes}표)가 ${tiedTopCount}개 동점입니다!<br/>
+            <span style="font-weight:600; display:block; margin:4px 0 8px;">동점 후보끼리 결선 투표를 하거나 아래에서 직접 확정할 수 있습니다.</span>
+            <button type="button" class="primary-btn" style="padding:9px; font-size:13px;" id="btnRunoffFromStatus">동점 후보만 결선 투표하기</button>
           </div>`
           : "";
 
@@ -1721,6 +1873,7 @@
 
         container.innerHTML = `
           ${autoConfirmBannerHtml}
+          ${tieBannerHtml}
           ${warningHtml}
           ${majorityHtml}
           <section class="card">
@@ -1752,6 +1905,11 @@
             <button type="button" class="secondary-btn" id="btnBackToCal">2. 캘린더로</button>
           </div>
         `;
+
+        const runoffStatusBtn = document.getElementById("btnRunoffFromStatus");
+        if (runoffStatusBtn) {
+          runoffStatusBtn.addEventListener("click", () => startRunoffVote(voteSummary.tiedTopSlots));
+        }
 
         const lowVotesBtn = document.getElementById("btnGoRebalanceLowVotes");
         if (lowVotesBtn) {
