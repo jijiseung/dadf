@@ -844,7 +844,8 @@
             }
           ],
           slots: [],
-          rebalanceInfo: null
+          rebalanceInfo: null,
+          isRunoff: false
         };
       }
 
@@ -862,6 +863,7 @@
           }
           parsed.appToday = getRealTodayStr();
           if (!parsed.calendarFilter) parsed.calendarFilter = "all";
+          if (typeof parsed.isRunoff !== "boolean") parsed.isRunoff = false;
           return parsed;
         } catch (e) {
           return createInitialState();
@@ -993,9 +995,10 @@
 
       // 초안 조건 변경 시 기존 슬롯 초기화 (데이터 불일치 방지)
       function invalidateDraftSlots() {
-        if (state.slots.length > 0 || state.rebalanceInfo) {
+        if (state.slots.length > 0 || state.rebalanceInfo || state.isRunoff) {
           state.slots = [];
           state.rebalanceInfo = null;
+          state.isRunoff = false;
           updateChrome();
         }
       }
@@ -1072,7 +1075,7 @@
         };
       }
 
-      // 동점 후보끼리 결선 투표 시작
+      // 동점 후보끼리 1인 1표 결선 투표 시작 (1회)
       function startRunoffVote(tiedSlots) {
         if (!tiedSlots || tiedSlots.length < 2) return;
         const tiedIds = new Set(tiedSlots.map((s) => s.id));
@@ -1086,13 +1089,31 @@
             s.status = "취소";
           }
         });
+        state.isRunoff = true;
         state.rebalanceInfo = null;
         state.selectedVoterIndex = 0;
         state.calendarFilter = "all";
         state.screen = 2;
         saveState();
         render();
-        showToast("동점 후보끼리 결선 투표를 시작합니다!");
+        showToast("동점 후보끼리 1인 1표 결선 투표를 시작합니다!");
+      }
+
+      // 결선에서도 동점일 때 랜덤 추첨으로 최종 확정
+      function confirmRandomFromTied(tiedSlots) {
+        if (!tiedSlots || tiedSlots.length === 0) return;
+        const winner = tiedSlots[Math.floor(Math.random() * tiedSlots.length)];
+        state.slots.forEach((s) => {
+          if (s.status === "확정") s.status = "후보";
+        });
+        winner.status = "확정";
+        state.isRunoff = false;
+        state.rebalanceInfo = null;
+        state.screen = 2;
+        saveState();
+        render();
+        const label = `${formatShortDate(winner.date)} ${formatHour(winner.startHour)}~${formatHour(winner.endHour)}`;
+        showToast(`🎲 랜덤 추첨 결과, ${label} 일정이 확정되었습니다!`);
       }
 
       // 상단 공통 UI 업데이트
@@ -1408,6 +1429,7 @@
           }
           state.slots = generateDraftSlots();
           state.rebalanceInfo = null;
+          state.isRunoff = false;
           state.selectedVoterIndex = 0;
           if (state.slots.length === 0) {
             const memberSummary = state.members
@@ -1471,13 +1493,29 @@
         const voteGuideBanner =
           !confirmed && activeSlots.length >= 2
             ? voteSummary.allVoted && voteSummary.tiedTopSlots.length > 1
+              ? state.isRunoff
+                ? `
+                <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
+                  🎲 결선 투표에서도 최다 득표(${voteSummary.topVotes}표)가 ${voteSummary.tiedTopSlots.length}개 동점입니다!<br/>
+                  <span style="font-size:12px; font-weight:600; display:block; margin:4px 0 8px;">무한 반복을 막기 위해 랜덤 추첨으로 바로 확정할 수 있습니다.</span>
+                  <button type="button" class="primary-btn" style="padding:10px; font-size:13px;" id="btnRandomConfirmFromCal">🎲 랜덤 추첨으로 확정</button>
+                </div>`
+                : `
+                <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
+                  ⚖️ 전원 투표 완료! 최다 득표(${voteSummary.topVotes}표)가 ${voteSummary.tiedTopSlots.length}개 동점입니다.<br/>
+                  <span style="font-size:12px; font-weight:600; display:block; margin:4px 0 8px;">동점 후보끼리 1인 1표 결선 투표로 최종 결정하세요.</span>
+                  <button type="button" class="primary-btn" style="padding:10px; font-size:13px;" id="btnRunoffFromCal">동점 후보 결선 투표 (1인 1표)</button>
+                </div>`
+              : state.isRunoff
               ? `
-              <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
-                ⚖️ 전원 투표 완료! 최다 득표(${voteSummary.topVotes}표)가 ${voteSummary.tiedTopSlots.length}개 동점입니다.<br/>
-                <span style="font-size:12px; font-weight:600; display:block; margin:4px 0 8px;">동점 후보끼리 다시 투표하거나 투표 현황에서 확정할 수 있어요.</span>
-                <div class="btn-row">
-                  <button type="button" class="primary-btn" style="padding:9px; font-size:13px;" id="btnRunoffFromCal">동점 후보 결선 투표</button>
-                  <button type="button" class="secondary-btn" style="padding:9px; font-size:13px;" id="btnGoStatusFromTie">현황에서 고르기</button>
+              <div class="alert-box" style="background:#fff7ed; color:var(--primary-dark); border:1.5px solid var(--primary);">
+                🔥 결선 투표 진행 중 (1인 1표)! 동점 후보 중 가장 원하는 1개에만 투표하세요.
+                <div style="font-size:12px; font-weight:600; margin-top:4px; color:#4b5563;">
+                  투표 완료: <strong>${voteSummary.votedMembers.length}/${voteSummary.total}명</strong>${
+                    voteSummary.unvotedMembers.length > 0
+                      ? ` · 미투표: ${voteSummary.unvotedMembers.map((m) => esc(m.name)).join(", ")}`
+                      : ""
+                  }
                 </div>
               </div>`
               : `
@@ -1609,7 +1647,7 @@
           ${voteGuideBanner}
           ${fallbackBanner}
           <section class="card">
-            <h2 class="card-title">투표할 팀원 선택 (중복 투표 가능)</h2>
+            <h2 class="card-title">${state.isRunoff ? "투표할 팀원 선택 (결선 · 1인 1표)" : "투표할 팀원 선택 (중복 투표 가능)"}</h2>
             <div class="voter-grid">${voterButtons}</div>
           </section>
 
@@ -1659,13 +1697,9 @@
           runoffCalBtn.addEventListener("click", () => startRunoffVote(voteSummary.tiedTopSlots));
         }
 
-        const goStatusTieBtn = document.getElementById("btnGoStatusFromTie");
-        if (goStatusTieBtn) {
-          goStatusTieBtn.addEventListener("click", () => {
-            state.screen = 3;
-            saveState();
-            render();
-          });
+        const randomCalBtn = document.getElementById("btnRandomConfirmFromCal");
+        if (randomCalBtn) {
+          randomCalBtn.addEventListener("click", () => confirmRandomFromTied(voteSummary.tiedTopSlots));
         }
 
         const confirmByVoteBtn = document.getElementById("btnConfirmByVote");
@@ -1677,9 +1711,15 @@
               return;
             }
             if (summary.tiedTopSlots.length > 1) {
-              alert(
-                `현재 최다 득표(${summary.topVotes}표)가 ${summary.tiedTopSlots.length}개 동점입니다.\n추가 투표하거나 결선 투표로 결정해 주세요.`
-              );
+              if (state.isRunoff) {
+                alert(
+                  `결선 투표에서도 최다 득표(${summary.topVotes}표)가 ${summary.tiedTopSlots.length}개 동점입니다.\n상단의 [🎲 랜덤 추첨으로 확정] 버튼을 눌러 결정해 주세요.`
+                );
+              } else {
+                alert(
+                  `현재 최다 득표(${summary.topVotes}표)가 ${summary.tiedTopSlots.length}개 동점입니다.\n추가 투표하거나 결선 투표(1인 1표)를 진행해 주세요.`
+                );
+              }
               return;
             }
             const label = `${formatShortDate(summary.topSlot.date)} ${formatHour(summary.topSlot.startHour)}~${formatHour(summary.topSlot.endHour)}`;
@@ -1697,6 +1737,7 @@
               if (s.status === "확정") s.status = "후보";
             });
             summary.topSlot.status = "확정";
+            state.isRunoff = false;
             saveState();
             render();
             showToast(`투표 결과(${summary.topVotes}/${summary.total}표)로 일정이 확정되었습니다!`);
@@ -1727,10 +1768,39 @@
 
             const voterId = currentVoter.id;
             const wasVotedHere = slot.votes[voterId] === "가능";
-            slot.votes[voterId] = wasVotedHere ? "미응답" : "가능";
+            if (wasVotedHere) {
+              slot.votes[voterId] = "미응답";
+            } else {
+              // 결선 투표일 때만 1인 1표 적용 (1차 투표는 중복 투표 가능)
+              if (state.isRunoff) {
+                activeSlots.forEach((s) => {
+                  if (s.votes[voterId] === "가능") s.votes[voterId] = "미응답";
+                });
+              }
+              slot.votes[voterId] = "가능";
+            }
+
+            // 결선 투표(1인 1표)에서 전원 투표 완료 & 단독 1위 시 즉시 자동 확정
+            let autoConfirmedRunoff = false;
+            const afterSummary = getVoteSummary();
+            if (
+              state.isRunoff &&
+              afterSummary.allVoted &&
+              afterSummary.tiedTopSlots.length === 1 &&
+              !getConfirmedSlot()
+            ) {
+              afterSummary.topSlot.status = "확정";
+              state.isRunoff = false;
+              autoConfirmedRunoff = true;
+            }
 
             saveState();
             render();
+            if (autoConfirmedRunoff) {
+              showToast(
+                `결선 투표 완료! 최다 득표(${afterSummary.topVotes}/${afterSummary.total}표)로 일정이 확정되었습니다!`
+              );
+            }
           });
         });
 
@@ -1765,6 +1835,7 @@
           tiedTopCount === 1
         ) {
           top1All.status = "확정";
+          state.isRunoff = false;
           saveState();
           autoConfirmedByTopVote = true;
         }
@@ -1795,12 +1866,19 @@
           : "";
 
         const tieBannerHtml = showTieBanner
-          ? `
-          <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
-            ⚖️ 최다 득표(${top1AllVotes}표)가 ${tiedTopCount}개 동점입니다!<br/>
-            <span style="font-weight:600; display:block; margin:4px 0 8px;">동점 후보끼리 결선 투표를 하거나 아래에서 직접 확정할 수 있습니다.</span>
-            <button type="button" class="primary-btn" style="padding:9px; font-size:13px;" id="btnRunoffFromStatus">동점 후보만 결선 투표하기</button>
-          </div>`
+          ? state.isRunoff
+            ? `
+            <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
+              🎲 결선 투표에서도 최다 득표(${top1AllVotes}표)가 ${tiedTopCount}개 동점입니다!<br/>
+              <span style="font-weight:600; display:block; margin:4px 0 8px;">랜덤 추첨으로 최종 일정을 바로 확정하세요.</span>
+              <button type="button" class="primary-btn" style="padding:10px; font-size:13px;" id="btnRandomConfirmFromStatus">🎲 랜덤 추첨으로 확정</button>
+            </div>`
+            : `
+            <div class="alert-box" style="background:var(--warn-bg); color:var(--warn-text); border:1px solid #fcd34d;">
+              ⚖️ 최다 득표(${top1AllVotes}표)가 ${tiedTopCount}개 동점입니다!<br/>
+              <span style="font-weight:600; display:block; margin:4px 0 8px;">동점 후보끼리 1인 1표 결선 투표로 결정해 보세요.</span>
+              <button type="button" class="primary-btn" style="padding:10px; font-size:13px;" id="btnRunoffFromStatus">동점 후보 결선 투표 (1인 1표)</button>
+            </div>`
           : "";
 
         const warningHtml = showUrgentWarning
@@ -1911,6 +1989,11 @@
           runoffStatusBtn.addEventListener("click", () => startRunoffVote(voteSummary.tiedTopSlots));
         }
 
+        const randomStatusBtn = document.getElementById("btnRandomConfirmFromStatus");
+        if (randomStatusBtn) {
+          randomStatusBtn.addEventListener("click", () => confirmRandomFromTied(voteSummary.tiedTopSlots));
+        }
+
         const lowVotesBtn = document.getElementById("btnGoRebalanceLowVotes");
         if (lowVotesBtn) {
           lowVotesBtn.addEventListener("click", () => {
@@ -1945,6 +2028,7 @@
             });
             const target = state.slots.find((s) => s.id === slotId);
             if (target) target.status = "확정";
+            state.isRunoff = false;
             state.screen = 2;
             saveState();
             render();
